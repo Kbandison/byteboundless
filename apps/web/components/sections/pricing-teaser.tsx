@@ -60,24 +60,18 @@ const TIERS = [
 ];
 
 export function PricingTeaser() {
-  const ref = useGSAP(({ gsap }) => {
+  const ref = useGSAP(({ gsap, isMobile }) => {
     gsap.from("[data-pricing-heading]", {
-      scrollTrigger: {
-        trigger: "[data-pricing-section]",
-        start: "top 75%",
-      },
-      y: 40,
+      scrollTrigger: { trigger: "[data-pricing-section]", start: isMobile ? "top 90%" : "top 75%" },
+      y: isMobile ? 20 : 40,
       opacity: 0,
       duration: 0.6,
       ease: "power2.out",
     });
 
     gsap.from("[data-pricing-card]", {
-      scrollTrigger: {
-        trigger: "[data-pricing-section]",
-        start: "top 60%",
-      },
-      y: 50,
+      scrollTrigger: { trigger: "[data-pricing-section]", start: isMobile ? "top 85%" : "top 60%" },
+      y: isMobile ? 25 : 50,
       opacity: 0,
       duration: 0.7,
       stagger: 0.12,
@@ -101,7 +95,7 @@ export function PricingTeaser() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-5xl mx-auto">
           {TIERS.map((tier) => (
             <div
               key={tier.name}

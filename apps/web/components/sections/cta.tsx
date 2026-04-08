@@ -5,16 +5,16 @@ import { ArrowRight } from "lucide-react";
 import { useGSAP } from "@/hooks/use-gsap";
 
 export function CTA() {
-  const ref = useGSAP(({ gsap }) => {
+  const ref = useGSAP(({ gsap, isMobile }) => {
     const tl = gsap.timeline({
       scrollTrigger: {
         trigger: "[data-cta-section]",
-        start: "top 70%",
+        start: isMobile ? "top 85%" : "top 70%",
       },
     });
 
     tl.from("[data-cta-heading]", {
-      y: 50,
+      y: isMobile ? 25 : 50,
       opacity: 0,
       duration: 0.7,
       ease: "power2.out",
@@ -22,7 +22,7 @@ export function CTA() {
       .from(
         "[data-cta-sub]",
         {
-          y: 30,
+          y: isMobile ? 15 : 30,
           opacity: 0,
           duration: 0.6,
           ease: "power2.out",
@@ -32,7 +32,7 @@ export function CTA() {
       .from(
         "[data-cta-button]",
         {
-          y: 20,
+          y: isMobile ? 10 : 20,
           opacity: 0,
           duration: 0.5,
           ease: "power2.out",
@@ -49,7 +49,7 @@ export function CTA() {
       <div className="relative max-w-4xl mx-auto text-center px-6">
         <h2
           data-cta-heading
-          className="font-[family-name:var(--font-display)] text-4xl md:text-6xl font-bold tracking-tight mb-6"
+          className="font-[family-name:var(--font-display)] text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6"
         >
           Your next client is already
           <br />

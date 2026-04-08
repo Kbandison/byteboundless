@@ -87,13 +87,10 @@ function FAQItem({
 export function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
-  const ref = useGSAP(({ gsap }) => {
+  const ref = useGSAP(({ gsap, isMobile }) => {
     gsap.from("[data-faq-heading]", {
-      scrollTrigger: {
-        trigger: "[data-faq-section]",
-        start: "top 75%",
-      },
-      y: 40,
+      scrollTrigger: { trigger: "[data-faq-section]", start: isMobile ? "top 90%" : "top 75%" },
+      y: isMobile ? 20 : 40,
       opacity: 0,
       duration: 0.6,
       ease: "power2.out",

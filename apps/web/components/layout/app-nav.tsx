@@ -10,7 +10,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { APP_NAV_LINKS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,11 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 export function AppNav() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
 
   return (
     <>
@@ -73,7 +78,7 @@ export function AppNav() {
 
           {/* Mobile Toggle */}
           <button
-            className="md:hidden p-2 -mr-2"
+            className="md:hidden p-3 -mr-3 min-h-[44px] min-w-[44px] flex items-center justify-center"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
           >

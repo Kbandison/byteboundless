@@ -25,7 +25,7 @@ export function Hero() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="font-[family-name:var(--font-display)] text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05] mb-6"
+              className="font-[family-name:var(--font-display)] text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05] mb-6"
             >
               Stop cold-calling.{" "}
               <span className="text-[var(--color-accent)]">Start closing.</span>
@@ -35,7 +35,7 @@ export function Hero() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.5 }}
-              className="text-[var(--color-text-secondary)] text-lg leading-relaxed mb-8 max-w-lg"
+              className="text-[var(--color-text-secondary)] text-base sm:text-lg leading-relaxed mb-8 max-w-lg"
             >
               ByteBoundless finds local businesses with outdated websites,
               scores them by rebuild opportunity, and writes your pitch — so you

@@ -116,7 +116,7 @@ export function HeroMockup() {
                 47 results &middot; 12 hot leads
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="hidden sm:flex gap-2">
               <span className="text-[10px] px-2.5 py-1 rounded-md bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] font-medium">
                 Export CSV
               </span>
@@ -127,8 +127,8 @@ export function HeroMockup() {
           </div>
         </div>
 
-        {/* Column headers */}
-        <div className="grid grid-cols-[44px_1fr_80px_72px_48px_48px] gap-2 px-4 py-2 text-[10px] uppercase tracking-wider text-[var(--color-text-dim)] font-medium border-b border-[var(--color-border)]/50">
+        {/* Column headers — desktop */}
+        <div className="hidden sm:grid grid-cols-[44px_1fr_80px_72px_48px_48px] gap-2 px-4 py-2 text-[10px] uppercase tracking-wider text-[var(--color-text-dim)] font-medium border-b border-[var(--color-border)]/50">
           <span>Score</span>
           <span>Business</span>
           <span>Tech</span>
@@ -137,8 +137,8 @@ export function HeroMockup() {
           <span className="text-center">Em</span>
         </div>
 
-        {/* Rows */}
-        <div className="divide-y divide-[var(--color-border)]/50">
+        {/* Rows — desktop */}
+        <div className="hidden sm:block divide-y divide-[var(--color-border)]/50">
           {MOCK_LEADS.map((lead, i) => (
             <div
               key={i}
@@ -170,6 +170,29 @@ export function HeroMockup() {
               </span>
               <span className="text-xs text-[var(--color-text-secondary)] text-center">
                 {lead.emails}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Rows — mobile (simplified cards) */}
+        <div className="sm:hidden divide-y divide-[var(--color-border)]/50">
+          {MOCK_LEADS.slice(0, 3).map((lead, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3">
+              <ScoreBadge score={lead.score} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{lead.name}</p>
+                <p className="text-[10px] text-[var(--color-text-dim)]">
+                  {lead.category}
+                </p>
+              </div>
+              <span
+                className={cn(
+                  "text-[10px] px-2 py-0.5 rounded font-medium shrink-0",
+                  TECH_COLORS[lead.tech]
+                )}
+              >
+                {lead.techLabel}
               </span>
             </div>
           ))}

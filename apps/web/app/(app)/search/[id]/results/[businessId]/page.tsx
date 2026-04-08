@@ -375,7 +375,7 @@ export default function LeadDetailPage({
                 </button>
               </div>
               <div className="p-4 rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--color-border)]">
-                <pre className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap font-[family-name:var(--font-body)] leading-relaxed">
+                <pre className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap break-words font-[family-name:var(--font-body)] leading-relaxed">
                   {pitch.draftEmail}
                 </pre>
               </div>

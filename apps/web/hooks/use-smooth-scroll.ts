@@ -8,6 +8,10 @@ export function useSmoothScroll() {
     let lenis: import("lenis").default;
 
     async function init() {
+      const isTouchDevice =
+        "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      if (isTouchDevice || window.innerWidth < 768) return;
+
       const Lenis = (await import("lenis")).default;
       lenis = new Lenis({
         duration: 1.2,

@@ -9,7 +9,11 @@ if (typeof window !== "undefined") {
 }
 
 export function useGSAP(
-  callback: (ctx: { gsap: typeof gsap; ScrollTrigger: typeof ScrollTrigger }) => void,
+  callback: (ctx: {
+    gsap: typeof gsap;
+    ScrollTrigger: typeof ScrollTrigger;
+    isMobile: boolean;
+  }) => void,
   deps: unknown[] = []
 ) {
   const ref = useRef<HTMLDivElement>(null);
@@ -17,8 +21,16 @@ export function useGSAP(
   useEffect(() => {
     if (!ref.current) return;
 
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    if (prefersReducedMotion) return;
+
+    const isMobile = window.innerWidth < 768;
+
     const ctx = gsap.context(() => {
-      callback({ gsap, ScrollTrigger });
+      callback({ gsap, ScrollTrigger, isMobile });
     }, ref);
 
     return () => ctx.revert();

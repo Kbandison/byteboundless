@@ -25,24 +25,21 @@ const PROBLEMS = [
 ];
 
 export function Problem() {
-  const ref = useGSAP(({ gsap }) => {
+  const ref = useGSAP(({ gsap, isMobile }) => {
+    const start = isMobile ? "top 90%" : "top 75%";
+    const cardStart = isMobile ? "top 85%" : "top 65%";
+
     gsap.from("[data-problem-title]", {
-      scrollTrigger: {
-        trigger: "[data-problem-section]",
-        start: "top 75%",
-      },
-      y: 40,
+      scrollTrigger: { trigger: "[data-problem-section]", start },
+      y: isMobile ? 20 : 40,
       opacity: 0,
       duration: 0.6,
       ease: "power2.out",
     });
 
     gsap.from("[data-problem-card]", {
-      scrollTrigger: {
-        trigger: "[data-problem-section]",
-        start: "top 65%",
-      },
-      y: 50,
+      scrollTrigger: { trigger: "[data-problem-section]", start: cardStart },
+      y: isMobile ? 25 : 50,
       opacity: 0,
       duration: 0.6,
       stagger: 0.12,

@@ -261,66 +261,70 @@ export default function ResultsPage({
           <span />
         </div>
 
-        {/* Rows */}
-        <div className="divide-y divide-[var(--color-border)]/50">
+        {/* Desktop rows */}
+        <div className="hidden md:block divide-y divide-[var(--color-border)]/50">
           {sorted.map((biz) => (
             <Link
               key={biz.id}
               href={`/search/${id}/results/${biz.id}`}
-              className="grid grid-cols-1 md:grid-cols-[56px_1fr_90px_80px_60px_60px_72px_40px] gap-3 px-5 py-4 items-center hover:bg-[var(--color-bg-secondary)]/30 transition-colors duration-200 cursor-pointer group"
+              className="grid grid-cols-[56px_1fr_90px_80px_60px_60px_72px_40px] gap-3 px-5 py-4 items-center hover:bg-[var(--color-bg-secondary)]/30 transition-colors duration-200 cursor-pointer group"
             >
-              {/* Score */}
-              <div>
-                <ScoreBadge score={biz.score} />
-              </div>
-
-              {/* Business info */}
+              <div><ScoreBadge score={biz.score} /></div>
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate group-hover:text-[var(--color-accent)] transition-colors duration-200">
-                  {biz.name}
-                </p>
-                <p className="text-xs text-[var(--color-text-dim)] truncate">
-                  {biz.category} &middot; {biz.address}
-                </p>
+                <p className="text-sm font-medium truncate group-hover:text-[var(--color-accent)] transition-colors duration-200">{biz.name}</p>
+                <p className="text-xs text-[var(--color-text-dim)] truncate">{biz.category} &middot; {biz.address}</p>
               </div>
-
-              {/* Tech */}
-              <div>
-                <TechChip tech={biz.tech} label={biz.techLabel} />
-              </div>
-
-              {/* Rating */}
+              <div><TechChip tech={biz.tech} label={biz.techLabel} /></div>
               <div className="flex items-center gap-1">
                 <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                <span className="text-sm text-[var(--color-text-secondary)]">
-                  {biz.rating}
-                </span>
+                <span className="text-sm text-[var(--color-text-secondary)]">{biz.rating}</span>
               </div>
-
-              {/* Emails */}
               <div className="flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-[var(--color-text-dim)]" />
-                <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">
-                  {biz.emails}
-                </span>
+                <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">{biz.emails}</span>
               </div>
-
-              {/* Socials */}
               <div className="flex items-center gap-1.5">
                 <Share2 className="w-3.5 h-3.5 text-[var(--color-text-dim)]" />
-                <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">
-                  {biz.socials}
-                </span>
+                <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">{biz.socials}</span>
               </div>
-
-              {/* Reviews */}
-              <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">
-                {biz.reviews}
-              </span>
-
-              {/* External link */}
+              <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">{biz.reviews}</span>
               <div className="flex justify-end">
                 <ExternalLink className="w-4 h-4 text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {/* Mobile card rows */}
+        <div className="md:hidden divide-y divide-[var(--color-border)]/50">
+          {sorted.map((biz) => (
+            <Link
+              key={biz.id}
+              href={`/search/${id}/results/${biz.id}`}
+              className="block px-4 py-4 hover:bg-[var(--color-bg-secondary)]/30 transition-colors duration-200"
+            >
+              <div className="flex items-start gap-3 mb-2">
+                <ScoreBadge score={biz.score} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{biz.name}</p>
+                  <p className="text-xs text-[var(--color-text-dim)] truncate">{biz.category}</p>
+                </div>
+                <TechChip tech={biz.tech} label={biz.techLabel} />
+              </div>
+              <div className="flex items-center gap-4 ml-[52px] text-xs text-[var(--color-text-secondary)]">
+                <span className="flex items-center gap-1">
+                  <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                  {biz.rating}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Mail className="w-3 h-3 text-[var(--color-text-dim)]" />
+                  {biz.emails}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Share2 className="w-3 h-3 text-[var(--color-text-dim)]" />
+                  {biz.socials}
+                </span>
+                <span className="font-[family-name:var(--font-mono)]">{biz.reviews} reviews</span>
               </div>
             </Link>
           ))}

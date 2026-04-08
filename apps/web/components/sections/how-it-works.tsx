@@ -28,24 +28,18 @@ const STEPS = [
 ];
 
 export function HowItWorks() {
-  const ref = useGSAP(({ gsap }) => {
+  const ref = useGSAP(({ gsap, isMobile }) => {
     gsap.from("[data-hiw-heading]", {
-      scrollTrigger: {
-        trigger: "[data-hiw-section]",
-        start: "top 75%",
-      },
-      y: 40,
+      scrollTrigger: { trigger: "[data-hiw-section]", start: isMobile ? "top 90%" : "top 75%" },
+      y: isMobile ? 20 : 40,
       opacity: 0,
       duration: 0.6,
       ease: "power2.out",
     });
 
     gsap.from("[data-hiw-step]", {
-      scrollTrigger: {
-        trigger: "[data-hiw-section]",
-        start: "top 60%",
-      },
-      y: 50,
+      scrollTrigger: { trigger: "[data-hiw-section]", start: isMobile ? "top 85%" : "top 60%" },
+      y: isMobile ? 25 : 50,
       opacity: 0,
       duration: 0.7,
       stagger: 0.15,

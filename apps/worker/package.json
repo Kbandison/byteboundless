@@ -1,0 +1,21 @@
+{
+  "name": "@byteboundless/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@byteboundless/types": "*",
+    "@byteboundless/supabase": "*",
+    "@supabase/supabase-js": "^2",
+    "playwright": "^1.50"
+  },
+  "devDependencies": {
+    "tsx": "^4",
+    "typescript": "^5",
+    "@types/node": "^20"
+  }
+}

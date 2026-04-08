@@ -69,9 +69,9 @@ function PhaseIndicator({
       className={cn(
         "relative flex items-start gap-4 p-5 rounded-xl border transition-all duration-500",
         status === "active"
-          ? "border-[var(--color-accent)]/30 bg-[var(--color-accent)]/[0.04]"
+          ? "border-[var(--color-accent)]/30 bg-[var(--color-accent-4)]"
           : status === "completed"
-            ? "border-emerald-500/20 bg-emerald-500/[0.03]"
+            ? "border-emerald-500/20 bg-emerald-50"
             : "border-[var(--color-border)] bg-[var(--color-bg-tertiary)] opacity-50"
       )}
     >
@@ -259,7 +259,7 @@ export default function SearchRunningPage({
 
       {/* Completion state */}
       {status === "completed" && (
-        <div className="text-center p-8 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.03]">
+        <div className="text-center p-8 rounded-xl border border-emerald-500/20 bg-emerald-50">
           <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-4" />
           <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold mb-2">
             42 leads found, 12 hot prospects
@@ -279,7 +279,7 @@ export default function SearchRunningPage({
 
       {/* Error state */}
       {status === "failed" && (
-        <div className="text-center p-8 rounded-xl border border-red-500/20 bg-red-500/[0.03]">
+        <div className="text-center p-8 rounded-xl border border-red-500/20 bg-red-50">
           <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
           <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold mb-2">
             Something went wrong

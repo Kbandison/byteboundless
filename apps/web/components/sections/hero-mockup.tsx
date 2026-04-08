@@ -87,7 +87,7 @@ export function HeroMockup() {
   return (
     <div className="relative">
       {/* Glow effect behind the card */}
-      <div className="absolute -inset-4 bg-[var(--color-accent)]/[0.04] rounded-3xl blur-2xl pointer-events-none" />
+      <div className="absolute -inset-4 bg-[var(--color-accent-4)] rounded-3xl blur-2xl pointer-events-none" />
 
       {/* Browser chrome wrapper */}
       <div className="relative bg-[var(--color-bg-tertiary)] rounded-xl border border-[var(--color-border)] shadow-2xl shadow-black/5 overflow-hidden">

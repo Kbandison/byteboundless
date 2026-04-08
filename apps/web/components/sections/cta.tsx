@@ -44,7 +44,7 @@ export function CTA() {
   return (
     <section ref={ref} data-cta-section className="relative py-32 md:py-48">
       {/* Accent gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--color-accent)]/[0.03] to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--color-accent-3)] to-transparent pointer-events-none" />
 
       <div className="relative max-w-4xl mx-auto text-center px-6">
         <h2

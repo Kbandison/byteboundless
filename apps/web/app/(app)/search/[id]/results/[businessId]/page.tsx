@@ -308,7 +308,7 @@ export default function LeadDetailPage({
           </div>
 
           {/* AI Pitch */}
-          <div className="p-6 rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/[0.02]">
+          <div className="p-6 rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-accent-2)]">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-[var(--color-accent)]" />

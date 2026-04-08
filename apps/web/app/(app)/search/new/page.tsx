@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Search, MapPin, Globe, SlidersHorizontal } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Search, MapPin, Globe, SlidersHorizontal, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------
@@ -83,18 +83,44 @@ function NewSearchForm() {
       setEnrich(false);
   }, [searchParams]);
 
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
-      console.log({
-        query,
-        location,
-        strictMode,
-        maxResults,
-        enrich,
-      });
+      if (!query || !location) return;
+
+      setSubmitting(true);
+      setError(null);
+
+      try {
+        const res = await fetch("/api/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query,
+            location,
+            options: { strict: strictMode, maxResults, enrich },
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setError(data.error || "Failed to create search");
+          setSubmitting(false);
+          return;
+        }
+
+        router.push(`/search/${data.job.id}`);
+      } catch {
+        setError("Network error. Please try again.");
+        setSubmitting(false);
+      }
     },
-    [query, location, strictMode, maxResults, enrich]
+    [query, location, strictMode, maxResults, enrich, router]
   );
 
   return (
@@ -199,13 +225,27 @@ function NewSearchForm() {
         </div>
       </div>
 
+      {/* --- Error --- */}
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* --- Submit --- */}
       <button
         type="submit"
-        className="w-full flex items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-accent-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:ring-offset-2 focus:ring-offset-[var(--color-bg-primary)] font-[family-name:var(--font-display)]"
+        disabled={submitting || !query || !location}
+        className="w-full flex items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:ring-offset-2 focus:ring-offset-[var(--color-bg-primary)] font-[family-name:var(--font-display)]"
       >
-        <Search className="h-4 w-4" />
-        Start Search
+        {submitting ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <>
+            <Search className="h-4 w-4" />
+            Start Search
+          </>
+        )}
       </button>
     </form>
   );

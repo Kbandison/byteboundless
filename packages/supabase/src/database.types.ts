@@ -5,6 +5,35 @@
 export interface Database {
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          email: string;
+          plan: "free" | "pro" | "agency";
+          searches_used: number;
+          searches_limit: number;
+          stripe_customer_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          email: string;
+          plan?: "free" | "pro" | "agency";
+          searches_used?: number;
+          searches_limit?: number;
+          stripe_customer_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          plan?: "free" | "pro" | "agency";
+          searches_used?: number;
+          searches_limit?: number;
+          stripe_customer_id?: string | null;
+          created_at?: string;
+        };
+      };
       scrape_jobs: {
         Row: {
           id: string;

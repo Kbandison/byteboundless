@@ -3,21 +3,34 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Mail, ArrowRight, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!email) return;
 
     setLoading(true);
-    // TODO: Replace with Supabase magic link call
-    console.log("Signup magic link requested for:", email);
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    setError(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
     setLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
     setSubmitted(true);
   }
 
@@ -34,6 +47,12 @@ export default function SignupPage() {
                 Enter your email to get started with a magic link.
               </p>
             </div>
+
+            {error && (
+              <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                {error}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

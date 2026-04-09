@@ -647,14 +647,23 @@ export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallbac
           const psi = await psiRes.json();
           const cats = psi.lighthouseResult?.categories;
           if (cats) {
-            (e as Record<string, unknown>).lighthouse = {
+            const lh = {
               performance: Math.round((cats.performance?.score ?? 0) * 100),
               seo: Math.round((cats.seo?.score ?? 0) * 100),
               accessibility: Math.round((cats.accessibility?.score ?? 0) * 100),
             };
+            // Mutate the enrichment object directly
+            (b.enrichment as Record<string, unknown>).lighthouse = lh;
+            console.log(`[Lighthouse] ${b.name}: perf=${lh.performance} seo=${lh.seo} a11y=${lh.accessibility}`);
+          } else {
+            console.log(`[Lighthouse] ${b.name}: no categories in response`);
           }
+        } else {
+          console.log(`[Lighthouse] ${b.name}: HTTP ${psiRes.status}`);
         }
-      } catch { /* skip this one */ }
+      } catch (err) {
+        console.log(`[Lighthouse] ${b.name}: ${(err as Error).message}`);
+      }
 
       onProgress("scoring", i + 1, enriched.length);
       // 1.5s delay between API calls to respect rate limits

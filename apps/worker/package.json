@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "postinstall": "npx playwright install --with-deps || true",
     "build": "tsc",
     "start": "node dist/index.js"
   },

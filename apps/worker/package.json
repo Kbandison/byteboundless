@@ -8,8 +8,6 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@byteboundless/types": "*",
-    "@byteboundless/supabase": "*",
     "@supabase/supabase-js": "^2",
     "playwright": "1.52.0"
   },

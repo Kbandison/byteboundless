@@ -15,6 +15,8 @@ import {
   Filter,
   Loader2,
   Phone,
+  Bookmark,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TECH_STACK_COLORS, getScoreColor } from "@/lib/constants";
@@ -146,10 +148,18 @@ export default function ResultsPage({
   const [jobQuery, setJobQuery] = useState("");
   const [jobLocation, setJobLocation] = useState("");
   const [loading, setLoading] = useState(true);
+  const [savedBizIds, setSavedBizIds] = useState<Set<string>>(new Set());
+  const [contactedBizIds, setContactedBizIds] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [techFilter, setTechFilter] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [scoreMin, setScoreMin] = useState(0);
+  const [filterHasPhone, setFilterHasPhone] = useState(false);
+  const [filterHasEmail, setFilterHasEmail] = useState(false);
+  const [filterHasWebsite, setFilterHasWebsite] = useState(false);
+  const [filterSaved, setFilterSaved] = useState(false);
+  const [filterContacted, setFilterContacted] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -170,7 +180,27 @@ export default function ResultsPage({
         .eq("job_id", id)
         .order("lead_score", { ascending: false });
 
-      setBusinesses(((data ?? []) as Record<string, unknown>[]).map(parseBusiness));
+      const parsed = ((data ?? []) as Record<string, unknown>[]).map(parseBusiness);
+      setBusinesses(parsed);
+
+      // Fetch saved/contacted status for these businesses
+      const bizIds = parsed.map((b) => b.id);
+      if (bizIds.length > 0) {
+        const { data: items } = await supabase
+          .from("saved_list_items")
+          .select("business_id, status")
+          .in("business_id", bizIds);
+
+        const saved = new Set<string>();
+        const contacted = new Set<string>();
+        ((items ?? []) as { business_id: string; status: string }[]).forEach((item) => {
+          saved.add(item.business_id);
+          if (item.status === "contacted") contacted.add(item.business_id);
+        });
+        setSavedBizIds(saved);
+        setContactedBizIds(contacted);
+      }
+
       setLoading(false);
     }
     fetchData();
@@ -185,11 +215,39 @@ export default function ResultsPage({
     }
   };
 
+  const activeFilterCount = [
+    techFilter.length > 0,
+    scoreMin > 0,
+    filterHasPhone,
+    filterHasEmail,
+    filterHasWebsite,
+    filterSaved,
+    filterContacted,
+  ].filter(Boolean).length;
+
   const sorted = useMemo(() => {
     let filtered = [...businesses];
 
     if (techFilter.length > 0) {
       filtered = filtered.filter((b) => techFilter.includes(b.tech));
+    }
+    if (scoreMin > 0) {
+      filtered = filtered.filter((b) => b.score >= scoreMin);
+    }
+    if (filterHasPhone) {
+      filtered = filtered.filter((b) => !!b.phone);
+    }
+    if (filterHasEmail) {
+      filtered = filtered.filter((b) => b.emails > 0);
+    }
+    if (filterHasWebsite) {
+      filtered = filtered.filter((b) => !!b.website);
+    }
+    if (filterSaved) {
+      filtered = filtered.filter((b) => savedBizIds.has(b.id));
+    }
+    if (filterContacted) {
+      filtered = filtered.filter((b) => contactedBizIds.has(b.id));
     }
 
     filtered.sort((a, b) => {
@@ -206,7 +264,7 @@ export default function ResultsPage({
     });
 
     return filtered;
-  }, [businesses, sortKey, sortDir, techFilter]);
+  }, [businesses, sortKey, sortDir, techFilter, scoreMin, filterHasPhone, filterHasEmail, filterHasWebsite, filterSaved, filterContacted, savedBizIds, contactedBizIds]);
 
   const hotCount = businesses.filter((b) => b.score >= 80).length;
 
@@ -251,9 +309,9 @@ export default function ResultsPage({
           >
             <Filter className="w-4 h-4" />
             Filters
-            {techFilter.length > 0 && (
+            {activeFilterCount > 0 && (
               <span className="w-5 h-5 rounded-full bg-[var(--color-accent)] text-white text-[10px] flex items-center justify-center">
-                {techFilter.length}
+                {activeFilterCount}
               </span>
             )}
           </button>
@@ -284,40 +342,99 @@ export default function ResultsPage({
 
       {/* Filters panel */}
       {showFilters && (
-        <div className="mb-6 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-          <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-3">
-            Tech Stack
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {availableTechs.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() =>
-                  setTechFilter((prev) =>
-                    prev.includes(key)
-                      ? prev.filter((t) => t !== key)
-                      : [...prev, key]
-                  )
-                }
-                className={cn(
-                  "text-xs px-3 py-1.5 rounded-md border transition-all duration-200",
-                  techFilter.includes(key)
-                    ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
-                    : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]"
-                )}
-              >
-                {label}
-              </button>
-            ))}
-            {techFilter.length > 0 && (
-              <button
-                onClick={() => setTechFilter([])}
-                className="text-xs px-3 py-1.5 text-[var(--color-text-dim)] hover:text-[var(--color-text-secondary)]"
-              >
-                Clear all
-              </button>
-            )}
+        <div className="mb-6 p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] space-y-5">
+          {/* Score range */}
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-2">Minimum Score</p>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={scoreMin}
+                onChange={(e) => setScoreMin(Number(e.target.value))}
+                className="flex-1 accent-[var(--color-accent)]"
+              />
+              <span className="text-xs font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)] w-8 text-right">{scoreMin}</span>
+            </div>
           </div>
+
+          {/* Toggle filters */}
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-2">Requirements</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "Has Phone", active: filterHasPhone, toggle: () => setFilterHasPhone(!filterHasPhone) },
+                { label: "Has Email", active: filterHasEmail, toggle: () => setFilterHasEmail(!filterHasEmail) },
+                { label: "Has Website", active: filterHasWebsite, toggle: () => setFilterHasWebsite(!filterHasWebsite) },
+                { label: "Saved", active: filterSaved, toggle: () => setFilterSaved(!filterSaved) },
+                { label: "Contacted", active: filterContacted, toggle: () => setFilterContacted(!filterContacted) },
+              ].map((f) => (
+                <button
+                  key={f.label}
+                  onClick={f.toggle}
+                  className={cn(
+                    "text-xs px-3 py-1.5 rounded-md border transition-all duration-200",
+                    f.active
+                      ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                      : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]"
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tech stack */}
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-2">Tech Stack</p>
+            <div className="flex flex-wrap gap-2">
+              {availableTechs.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() =>
+                    setTechFilter((prev) =>
+                      prev.includes(key)
+                        ? prev.filter((t) => t !== key)
+                        : [...prev, key]
+                    )
+                  }
+                  className={cn(
+                    "text-xs px-3 py-1.5 rounded-md border transition-all duration-200",
+                    techFilter.includes(key)
+                      ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                      : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Clear all */}
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => {
+                setTechFilter([]);
+                setScoreMin(0);
+                setFilterHasPhone(false);
+                setFilterHasEmail(false);
+                setFilterHasWebsite(false);
+                setFilterSaved(false);
+                setFilterContacted(false);
+              }}
+              className="text-xs text-[var(--color-accent)] hover:underline"
+            >
+              Clear all filters
+            </button>
+          )}
+
+          <p className="text-xs text-[var(--color-text-dim)]">
+            Showing {sorted.length} of {businesses.length} results
+          </p>
         </div>
       )}
 
@@ -346,7 +463,11 @@ export default function ResultsPage({
             >
               <div><ScoreBadge score={biz.score} /></div>
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate group-hover:text-[var(--color-accent)] transition-colors duration-200">{biz.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium truncate group-hover:text-[var(--color-accent)] transition-colors duration-200">{biz.name}</p>
+                  {contactedBizIds.has(biz.id) && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                  {savedBizIds.has(biz.id) && !contactedBizIds.has(biz.id) && <Bookmark className="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" />}
+                </div>
                 <p className="text-xs text-[var(--color-text-dim)] truncate">{biz.category} &middot; {biz.address}</p>
               </div>
               <div><TechChip tech={biz.tech} label={biz.techLabel} /></div>
@@ -384,7 +505,11 @@ export default function ResultsPage({
               <div className="flex items-start gap-3 mb-2">
                 <ScoreBadge score={biz.score} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{biz.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium truncate">{biz.name}</p>
+                    {contactedBizIds.has(biz.id) && <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />}
+                    {savedBizIds.has(biz.id) && !contactedBizIds.has(biz.id) && <Bookmark className="w-3 h-3 text-[var(--color-accent)] shrink-0" />}
+                  </div>
                   <p className="text-xs text-[var(--color-text-dim)] truncate">{biz.category}</p>
                 </div>
                 <TechChip tech={biz.tech} label={biz.techLabel} />

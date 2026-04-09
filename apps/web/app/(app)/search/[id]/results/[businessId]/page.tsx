@@ -169,21 +169,17 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         {/* Left — Business Data */}
         <div className="lg:col-span-5 space-y-6">
           <div className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h1 className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">{lead.name}</h1>
-                <p className="text-sm text-[var(--color-text-secondary)] mt-1">{lead.category}</p>
-              </div>
-              <button className="p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-all duration-300">
-                <Bookmark className="w-4 h-4" />
-              </button>
+            <div className="mb-4">
+              <h1 className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">{lead.name}</h1>
+              <p className="text-sm text-[var(--color-text-secondary)] mt-1">{lead.category}</p>
             </div>
             <div className="space-y-3">
               {lead.website && (
-                <div className="flex items-center gap-3 text-sm">
+                <div className="flex items-center gap-3 text-sm min-w-0">
                   <Globe className="w-4 h-4 text-[var(--color-text-dim)] shrink-0" />
-                  <a href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline flex items-center gap-1">
-                    {lead.website.replace(/^https?:\/\//, "")} <ExternalLink className="w-3 h-3" />
+                  <a href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline flex items-center gap-1 min-w-0">
+                    <span className="truncate">{lead.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</span>
+                    <ExternalLink className="w-3 h-3 shrink-0" />
                   </a>
                 </div>
               )}

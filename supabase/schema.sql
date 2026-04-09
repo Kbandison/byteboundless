@@ -12,10 +12,21 @@ create extension if not exists "uuid-ossp";
 create table public.profiles (
   id uuid references auth.users on delete cascade primary key,
   email text not null,
+  role text not null default 'user' check (role in ('user', 'admin')),
   plan text not null default 'free' check (plan in ('free', 'pro', 'agency')),
   searches_used integer not null default 0,
   searches_limit integer not null default 3,
   stripe_customer_id text,
+  -- Profile fields (used in AI pitch generation)
+  full_name text,
+  company_name text,
+  phone text,
+  website text,
+  portfolio_url text,
+  location text,
+  services text[] default '{}',
+  years_experience integer,
+  onboarding_complete boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -228,6 +239,30 @@ create policy "Users can read own pitches"
       and scrape_jobs.user_id = auth.uid()
     )
   );
+
+-- ============================================================
+-- ADMIN HELPER (SECURITY DEFINER to avoid RLS recursion)
+-- ============================================================
+create or replace function public.is_admin()
+returns boolean as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'admin'
+  );
+$$ language sql security definer stable;
+
+-- Admin policies
+create policy "Admins can read all profiles"
+  on public.profiles for select using (public.is_admin());
+
+create policy "Admins can update all profiles"
+  on public.profiles for update using (public.is_admin());
+
+create policy "Admins can read all jobs"
+  on public.scrape_jobs for select using (public.is_admin());
+
+create policy "Admins can read all businesses"
+  on public.businesses for select using (public.is_admin());
 
 -- ============================================================
 -- REALTIME — enable for scrape_jobs progress

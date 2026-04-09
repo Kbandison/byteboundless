@@ -14,7 +14,7 @@ export function HelpTip({
   side?: "top" | "bottom" | "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -34,7 +34,7 @@ export function HelpTip({
   };
 
   return (
-    <div ref={ref} className={cn("relative inline-flex", className)}>
+    <span ref={ref} className={cn("relative inline-flex", className)}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -46,15 +46,15 @@ export function HelpTip({
         <HelpCircle className="w-3.5 h-3.5" />
       </button>
       {open && (
-        <div
+        <span
           className={cn(
-            "absolute z-50 w-56 p-3 rounded-lg bg-[var(--color-text-primary)] text-white text-xs leading-relaxed shadow-lg",
+            "absolute z-50 w-56 p-3 rounded-lg bg-[var(--color-text-primary)] text-white text-xs leading-relaxed shadow-lg block",
             positionClasses[side]
           )}
         >
           {text}
-        </div>
+        </span>
       )}
-    </div>
+    </span>
   );
 }

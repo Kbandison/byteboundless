@@ -13,6 +13,7 @@ export function useGSAP(
     gsap: typeof gsap;
     ScrollTrigger: typeof ScrollTrigger;
     isMobile: boolean;
+    el: HTMLDivElement;
   }) => void,
   deps: unknown[] = []
 ) {
@@ -28,9 +29,10 @@ export function useGSAP(
     if (prefersReducedMotion) return;
 
     const isMobile = window.innerWidth < 768;
+    const el = ref.current;
 
     const ctx = gsap.context(() => {
-      callback({ gsap, ScrollTrigger, isMobile });
+      callback({ gsap, ScrollTrigger, isMobile, el });
     }, ref);
 
     return () => ctx.revert();

@@ -60,17 +60,17 @@ const TIERS = [
 ];
 
 export function PricingTeaser() {
-  const ref = useGSAP(({ gsap, isMobile }) => {
-    gsap.from("[data-pricing-heading]", {
-      scrollTrigger: { trigger: "[data-pricing-section]", start: isMobile ? "top 90%" : "top 75%" },
+  const ref = useGSAP(({ gsap, isMobile, el }) => {
+    gsap.from(el.querySelectorAll("[data-pricing-heading]"), {
+      scrollTrigger: { trigger: el, start: isMobile ? "top 90%" : "top 75%" },
       y: isMobile ? 20 : 40,
       opacity: 0,
       duration: 0.6,
       ease: "power2.out",
     });
 
-    gsap.from("[data-pricing-card]", {
-      scrollTrigger: { trigger: "[data-pricing-section]", start: isMobile ? "top 85%" : "top 60%" },
+    gsap.from(el.querySelectorAll("[data-pricing-card]"), {
+      scrollTrigger: { trigger: el, start: isMobile ? "top 85%" : "top 60%" },
       y: isMobile ? 25 : 50,
       opacity: 0,
       duration: 0.7,

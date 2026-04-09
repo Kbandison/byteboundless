@@ -5,22 +5,22 @@ import { ArrowRight } from "lucide-react";
 import { useGSAP } from "@/hooks/use-gsap";
 
 export function CTA() {
-  const ref = useGSAP(({ gsap, isMobile }) => {
+  const ref = useGSAP(({ gsap, isMobile, el }) => {
     const tl = gsap.timeline({
       scrollTrigger: {
-        trigger: "[data-cta-section]",
+        trigger: el,
         start: isMobile ? "top 85%" : "top 70%",
       },
     });
 
-    tl.from("[data-cta-heading]", {
+    tl.from(el.querySelectorAll("[data-cta-heading]"), {
       y: isMobile ? 25 : 50,
       opacity: 0,
       duration: 0.7,
       ease: "power2.out",
     })
       .from(
-        "[data-cta-sub]",
+        el.querySelectorAll("[data-cta-sub]"),
         {
           y: isMobile ? 15 : 30,
           opacity: 0,
@@ -30,7 +30,7 @@ export function CTA() {
         "-=0.4"
       )
       .from(
-        "[data-cta-button]",
+        el.querySelectorAll("[data-cta-button]"),
         {
           y: isMobile ? 10 : 20,
           opacity: 0,

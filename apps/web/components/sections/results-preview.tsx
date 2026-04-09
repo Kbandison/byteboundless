@@ -4,17 +4,17 @@ import { useGSAP } from "@/hooks/use-gsap";
 import { HeroMockup } from "@/components/sections/hero-mockup";
 
 export function ResultsPreview() {
-  const ref = useGSAP(({ gsap, isMobile }) => {
-    gsap.from("[data-rp-heading]", {
-      scrollTrigger: { trigger: "[data-rp-section]", start: isMobile ? "top 90%" : "top 75%" },
+  const ref = useGSAP(({ gsap, isMobile, el }) => {
+    gsap.from(el.querySelectorAll("[data-rp-heading]"), {
+      scrollTrigger: { trigger: el, start: isMobile ? "top 90%" : "top 75%" },
       y: isMobile ? 20 : 40,
       opacity: 0,
       duration: 0.6,
       ease: "power2.out",
     });
 
-    gsap.from("[data-rp-mockup]", {
-      scrollTrigger: { trigger: "[data-rp-section]", start: isMobile ? "top 85%" : "top 65%" },
+    gsap.from(el.querySelectorAll("[data-rp-mockup]"), {
+      scrollTrigger: { trigger: el, start: isMobile ? "top 85%" : "top 65%" },
       y: isMobile ? 30 : 60,
       opacity: 0,
       scale: 0.98,

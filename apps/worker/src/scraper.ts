@@ -10,10 +10,12 @@ const ENRICH_CONCURRENCY = 12;
 const FETCH_TIMEOUT_MS = 10000;
 const MAX_PAGES_PER_SITE = 3;
 
+export type SearchRadius = "city" | "nearby" | "region" | "statewide";
+
 export interface ScrapeOptions {
   query: string;
   location: string;
-  strict: boolean;
+  radius: SearchRadius;
   maxResults: number;
   enrich: boolean;
   contexts?: number;
@@ -352,9 +354,38 @@ async function collectListingUrls(opts: ScrapeOptions): Promise<{ url: string; n
     viewport: { width: 1400, height: 900 },
   });
   const page = await context.newPage();
-  const searchTerm = `${opts.query} in ${opts.location}`;
+
+  // Build search query based on radius
+  let searchTerm: string;
+  let scrolls: number;
+
+  const city = opts.location.split(",")[0].trim();
+  const state = (opts.location.split(",")[1] || "").trim();
+
+  switch (opts.radius) {
+    case "city":
+      searchTerm = `${opts.query} in ${opts.location}`;
+      scrolls = opts.scrolls ?? 8;
+      break;
+    case "nearby":
+      searchTerm = `${opts.query} near ${opts.location}`;
+      scrolls = opts.scrolls ?? 12;
+      break;
+    case "region":
+      // Use metro area phrasing for wider coverage
+      searchTerm = `${opts.query} in ${city} area${state ? `, ${state}` : ""}`;
+      scrolls = opts.scrolls ?? 18;
+      break;
+    case "statewide":
+      searchTerm = `${opts.query} in ${state || opts.location}`;
+      scrolls = opts.scrolls ?? 25;
+      break;
+    default:
+      searchTerm = `${opts.query} in ${opts.location}`;
+      scrolls = opts.scrolls ?? 10;
+  }
+
   const url = `https://www.google.com/maps/search/${encodeURIComponent(searchTerm)}`;
-  const scrolls = opts.scrolls ?? 10;
 
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await page.waitForSelector('div[role="feed"]', { timeout: 15000 });
@@ -461,7 +492,7 @@ async function scrapeDetailsParallel(
               const placeId = extractPlaceId(listing.url);
               if (placeId && seenIds.has(placeId)) return null;
 
-              if (opts.strict && details.address) {
+              if (opts.radius === "city" && details.address) {
                 const parts = details.address.split(",").map((s: string) => s.trim());
                 const city = parts.length >= 2 ? parts[parts.length - 2].toLowerCase() : "";
                 const stateZip = parts.length >= 1 ? parts[parts.length - 1].toLowerCase() : "";

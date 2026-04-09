@@ -58,7 +58,7 @@ function NewSearchForm() {
 
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
-  const [strictMode, setStrictMode] = useState(false);
+  const [radius, setRadius] = useState<string>("city");
   const [maxResults, setMaxResults] = useState<number>(50);
   const [enrich, setEnrich] = useState(true);
 
@@ -67,13 +67,13 @@ function NewSearchForm() {
     const q = searchParams.get("query") ?? searchParams.get("q");
     const loc =
       searchParams.get("location") ?? searchParams.get("loc");
-    const strict = searchParams.get("strict");
+    const rad = searchParams.get("radius");
     const max = searchParams.get("max");
     const enrichParam = searchParams.get("enrich");
 
     if (q) setQuery(q);
     if (loc) setLocation(loc);
-    if (strict === "true" || strict === "1") setStrictMode(true);
+    if (rad && ["city", "nearby", "region", "statewide"].includes(rad)) setRadius(rad);
     if (max) {
       const parsed = Number(max);
       if (
@@ -105,7 +105,7 @@ function NewSearchForm() {
           body: JSON.stringify({
             query,
             location,
-            options: { strict: strictMode, maxResults, enrich },
+            options: { radius, maxResults, enrich },
           }),
         });
 
@@ -123,7 +123,7 @@ function NewSearchForm() {
         setSubmitting(false);
       }
     },
-    [query, location, strictMode, maxResults, enrich, router]
+    [query, location, radius, maxResults, enrich, router]
   );
 
   return (
@@ -173,21 +173,44 @@ function NewSearchForm() {
           Options
         </div>
 
-        {/* Strict mode */}
-        <div className="flex items-center justify-between gap-4">
-          <label
-            htmlFor="strict-mode"
-            className="flex items-center gap-2 text-sm text-[var(--color-text-primary)]"
-          >
-            <Globe className="h-4 w-4 text-[var(--color-text-secondary)]" />
-            Only return results with websites
-            <HelpTip text="Filters out businesses that appear in Google Maps but don't have a website URL listed. Useful for focusing on businesses with existing sites to rebuild." side="right" />
-          </label>
-          <Toggle
-            id="strict-mode"
-            checked={strictMode}
-            onChange={setStrictMode}
-          />
+        {/* Search radius */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="text-sm text-[var(--color-text-primary)]">
+              Search Area
+            </label>
+            <HelpTip text="City: exact city results only. Nearby: includes surrounding ~25mi. Region: wider ~50mi metro area. Statewide: entire state. Larger areas take longer to scrape." />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { value: "city", label: "City Only", time: "~2 min" },
+              { value: "nearby", label: "Nearby", time: "~3 min" },
+              { value: "region", label: "Region", time: "~5 min" },
+              { value: "statewide", label: "Statewide", time: "~8 min" },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setRadius(opt.value)}
+                className={cn(
+                  "flex flex-col items-center py-2.5 px-3 rounded-lg border text-xs font-medium transition-all duration-200",
+                  radius === opt.value
+                    ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                    : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]"
+                )}
+              >
+                <span>{opt.label}</span>
+                <span className={cn("text-[10px] mt-0.5", radius === opt.value ? "text-[var(--color-accent)]/70" : "text-[var(--color-text-dim)]")}>{opt.time}</span>
+              </button>
+            ))}
+          </div>
+          {(radius === "region" || radius === "statewide") && (
+            <p className="text-[11px] text-amber-600 mt-2">
+              {radius === "statewide"
+                ? "Statewide searches collect more listings and take significantly longer. Consider using 100-200 max results."
+                : "Region searches include a wider metro area and may take a few extra minutes."}
+            </p>
+          )}
         </div>
 
         {/* Max results */}

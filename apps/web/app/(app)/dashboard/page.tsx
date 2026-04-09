@@ -151,9 +151,13 @@ export default async function DashboardPage() {
                     <span className="text-xs text-[var(--color-text-dim)]">
                       max {job.options.maxResults}
                     </span>
-                    {job.options.strict && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-medium">strict</span>
-                    )}
+                    {(() => {
+                      const opts = job.options as Record<string, unknown>;
+                      const rad = opts.radius as string | undefined;
+                      return rad ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-medium capitalize">{rad}</span>
+                      ) : null;
+                    })()}
                     {job.options.enrich && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">enriched</span>
                     )}

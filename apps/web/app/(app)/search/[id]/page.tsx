@@ -27,10 +27,10 @@ interface PhaseConfig {
 }
 
 const PHASES: PhaseConfig[] = [
-  { key: "collecting", label: "Collecting", description: "Finding businesses on Google Maps", icon: MapPin },
-  { key: "extracting", label: "Extracting", description: "Pulling details from each listing", icon: FileSearch },
-  { key: "enriching", label: "Enriching", description: "Visiting websites, scanning for intel", icon: Globe },
-  { key: "scoring", label: "Scoring", description: "Running AI lead scoring", icon: Sparkles },
+  { key: "collecting", label: "Collecting Listings", description: "Scrolling through Google Maps to find businesses in your area", icon: MapPin },
+  { key: "extracting", label: "Extracting Details", description: "Visiting each Google Maps listing to pull name, phone, address, rating, and website", icon: FileSearch },
+  { key: "enriching", label: "Enriching Websites", description: "Scanning each business's website for tech stack, emails, social profiles, and mobile-friendliness", icon: Globe },
+  { key: "scoring", label: "Scoring Leads", description: "Analyzing 12+ signals to rank each business by rebuild opportunity", icon: Sparkles },
 ];
 
 function PhaseIndicator({
@@ -119,12 +119,15 @@ export default function SearchRunningPage({
   const { id } = use(params);
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
+  const [radius, setRadius] = useState("nearby");
   const [phase, setPhase] = useState<Phase | null>(null);
   const [current, setCurrent] = useState(0);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState<JobStatus>("pending");
   const [error, setError] = useState<string | null>(null);
   const [resultCount, setResultCount] = useState(0);
+  const [startedAt, setStartedAt] = useState<Date | null>(null);
+  const [elapsed, setElapsed] = useState(0);
 
   const fetchJob = useCallback(async () => {
     const supabase = createClient();
@@ -138,6 +141,9 @@ export default function SearchRunningPage({
     const job = data as Record<string, unknown>;
     setQuery(job.query as string);
     setLocation(job.location as string);
+    const opts = job.options as Record<string, unknown> | null;
+    if (opts?.radius) setRadius(opts.radius as string);
+    if (!startedAt && job.created_at) setStartedAt(new Date(job.created_at as string));
     setStatus(job.status as JobStatus);
     setPhase((job.phase as Phase) ?? null);
     setCurrent(job.progress_current as number);
@@ -157,6 +163,15 @@ export default function SearchRunningPage({
   useEffect(() => {
     fetchJob();
   }, [fetchJob]);
+
+  // Elapsed time counter
+  useEffect(() => {
+    if (status === "completed" || status === "failed" || !startedAt) return;
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [status, startedAt]);
 
   // Realtime subscription
   useEffect(() => {
@@ -213,8 +228,23 @@ export default function SearchRunningPage({
           {status === "completed" ? "Search complete" : status === "failed" ? "Search failed" : "Searching..."}
         </h1>
         {query && (
-          <p className="text-sm text-[var(--color-text-secondary)] mt-2">
-            {query} in {location}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-sm text-[var(--color-text-secondary)]">
+            <span>{query} in {location}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg-secondary)] font-medium capitalize">{radius}</span>
+            {elapsed > 0 && status !== "completed" && status !== "failed" && (
+              <span className="font-[family-name:var(--font-mono)] text-xs text-[var(--color-text-dim)]">
+                {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")} elapsed
+              </span>
+            )}
+          </div>
+        )}
+        {/* Live phase detail */}
+        {status === "running" && phase && current > 0 && total > 0 && (
+          <p className="text-xs text-[var(--color-accent)] font-[family-name:var(--font-mono)] mt-3">
+            {phase === "collecting" && `Found ${current} listings so far...`}
+            {phase === "extracting" && `Extracting details: ${current} of ${total} listings visited`}
+            {phase === "enriching" && `Enriching websites: ${current} of ${total} sites scanned for tech stack, emails, and socials`}
+            {phase === "scoring" && `Scoring leads: ${current} of ${total} analyzed`}
           </p>
         )}
       </div>

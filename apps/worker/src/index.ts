@@ -131,16 +131,18 @@ async function failJob(jobId: string, error: string) {
 
 async function processJob(job: Record<string, unknown>) {
   const jobId = job.id as string;
-  const options = job.options as { strict: boolean; maxResults: number; enrich: boolean };
+  const options = job.options as { radius?: string; strict?: boolean; maxResults: number; enrich: boolean };
+  // Support both old (strict) and new (radius) option formats
+  const radius = (options.radius || (options.strict ? "city" : "nearby")) as "city" | "nearby" | "region" | "statewide";
 
-  console.log(`[Worker] Processing job ${jobId}: "${job.query}" in "${job.location}"`);
+  console.log(`[Worker] Processing job ${jobId}: "${job.query}" in "${job.location}" (radius: ${radius})`);
 
   try {
     const results = await runScrape(
       {
         query: job.query as string,
         location: job.location as string,
-        strict: options.strict,
+        radius,
         maxResults: options.maxResults,
         enrich: options.enrich,
       },

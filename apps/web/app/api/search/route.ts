@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       query,
       location,
-      options: options ?? { strict: false, maxResults: 50, enrich: true },
+      options: options ?? { radius: "nearby", maxResults: 50, enrich: true },
     } as never)
     .select("*")
     .single();

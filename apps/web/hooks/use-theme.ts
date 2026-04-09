@@ -20,14 +20,15 @@ function applyTheme(theme: Theme) {
 
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>("system");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("bb-theme") as Theme | null;
     const initial = saved || "system";
     setThemeState(initial);
     applyTheme(initial);
+    setMounted(true);
 
-    // Listen for system preference changes
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     function onChange() {
       const current = localStorage.getItem("bb-theme") as Theme | null;
@@ -45,5 +46,7 @@ export function useTheme() {
     applyTheme(t);
   }, []);
 
-  return { theme, setTheme };
+  const resolvedTheme = theme === "system" ? getSystemTheme() : theme;
+
+  return { theme, setTheme, mounted, isDark: mounted ? resolvedTheme === "dark" : false };
 }

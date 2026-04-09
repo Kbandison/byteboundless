@@ -9,8 +9,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 
 export function Navbar() {
-  const { theme, setTheme } = useTheme();
-  const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const { setTheme, mounted, isDark } = useTheme();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -68,13 +67,15 @@ export function Navbar() {
 
           {/* Right side */}
           <div className="hidden md:flex items-center gap-3">
-            <button
-              onClick={() => setTheme(isDark ? "light" : "dark")}
-              className="p-2 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)]/50 transition-colors duration-200"
-              aria-label="Toggle dark mode"
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
+            {mounted && (
+              <button
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+                className="p-2 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)]/50 transition-colors duration-200"
+                aria-label="Toggle dark mode"
+              >
+                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+            )}
             <Link
               href="/login"
               className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-300 px-4 py-2"

@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Bookmark, Plus, Loader2, Trash2 } from "lucide-react";
+import { Bookmark, Plus, Loader2, Trash2, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { usePlan, isPaidPlan } from "@/hooks/use-plan";
+import { UpgradeGate } from "@/components/ui/upgrade-gate";
 
 interface SavedList {
   id: string;
@@ -20,6 +22,8 @@ export default function SavedListsPage() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const plan = usePlan();
+  const paid = isPaidPlan(plan);
 
   async function fetchLists() {
     const res = await fetch("/api/lists");
@@ -67,6 +71,17 @@ export default function SavedListsPage() {
     return (
       <div className="max-w-5xl mx-auto px-6 md:px-8 py-20 flex flex-col items-center">
         <Loader2 className="w-8 h-8 text-[var(--color-accent)] animate-spin" />
+      </div>
+    );
+  }
+
+  if (!paid) {
+    return (
+      <div className="max-w-5xl mx-auto px-6 md:px-8 py-12">
+        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight mb-8">
+          Saved Lists
+        </h1>
+        <UpgradeGate feature="Organize leads into lists, track your outreach pipeline, and manage campaigns" />
       </div>
     );
   }

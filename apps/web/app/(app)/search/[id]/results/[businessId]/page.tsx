@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
+import { UpgradeGate } from "@/components/ui/upgrade-gate";
+import { usePlan, isPaidPlan } from "@/hooks/use-plan";
 import { getScoreColor, TECH_STACK_COLORS } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
 
@@ -70,6 +72,8 @@ function parseLead(raw: Record<string, unknown>): LeadData {
 
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string; businessId: string }> }) {
   const { id, businessId } = use(params);
+  const plan = usePlan();
+  const paid = isPaidPlan(plan);
   const [lead, setLead] = useState<LeadData | null>(null);
   const [pitch, setPitch] = useState<PitchData | null>(null);
   const [pitchLoading, setPitchLoading] = useState(false);
@@ -308,7 +312,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           )}
 
-          {/* Actions */}
+          {/* Actions — gated for free users */}
+          {paid ? (
           <div className="space-y-3">
             {saveMsg && (
               <p className={`text-xs px-3 py-2 rounded-lg ${saveMsg.includes("Error") ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"}`}>{saveMsg}</p>
@@ -497,6 +502,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
           </div>
+          ) : (
+            <UpgradeGate feature="Save to lists, track outreach, and manage your pipeline" />
+          )}
         </div>
 
         {/* Right — Score + AI Pitch */}

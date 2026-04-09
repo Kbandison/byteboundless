@@ -2,9 +2,10 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Search, MapPin, Globe, SlidersHorizontal, Loader2 } from "lucide-react";
+import { Search, MapPin, Globe, SlidersHorizontal, Loader2, Lock } from "lucide-react";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { HelpTip } from "@/components/ui/help-tip";
+import { usePlan, isPaidPlan } from "@/hooks/use-plan";
 import { BUSINESS_CATEGORIES, US_CITIES } from "@/lib/autocomplete-data";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +61,8 @@ const PLAN_LIMITS: Record<string, { options: number[]; max: number }> = {
 function NewSearchForm() {
   const searchParams = useSearchParams();
 
+  const userPlan = usePlan();
+  const paid = isPaidPlan(userPlan);
   const [mode, setMode] = useState<"search" | "urls">("search");
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
@@ -171,14 +174,17 @@ function NewSearchForm() {
         </button>
         <button
           type="button"
-          onClick={() => setMode("urls")}
+          onClick={() => { if (paid) setMode("urls"); }}
           className={cn(
-            "flex-1 text-sm font-medium py-2.5 transition-colors",
-            mode === "urls"
-              ? "bg-[var(--color-accent)] text-white"
-              : "bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]"
+            "flex-1 text-sm font-medium py-2.5 transition-colors flex items-center justify-center gap-1.5",
+            !paid
+              ? "bg-[var(--color-bg-tertiary)] text-[var(--color-text-dim)] cursor-not-allowed"
+              : mode === "urls"
+                ? "bg-[var(--color-accent)] text-white"
+                : "bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]"
           )}
         >
+          {!paid && <Lock className="w-3 h-3" />}
           Paste URLs to Qualify
         </button>
       </div>

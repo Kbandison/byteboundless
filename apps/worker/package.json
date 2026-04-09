@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "postinstall": "npx playwright install --with-deps || true",
     "build": "tsc",
     "start": "node dist/index.js"
   },
@@ -12,7 +11,7 @@
     "@byteboundless/types": "*",
     "@byteboundless/supabase": "*",
     "@supabase/supabase-js": "^2",
-    "playwright": "^1.50"
+    "playwright": "1.52.0"
   },
   "devDependencies": {
     "tsx": "^4",

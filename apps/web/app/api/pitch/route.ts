@@ -25,10 +25,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // Get user profile for pitch personalization
+  // Get user profile for pitch personalization + plan check
   const { data: profileRaw } = await supabase
     .from("profiles")
-    .select("full_name, company_name, phone, website, location, services, years_experience, portfolio_url")
+    .select("full_name, company_name, phone, website, location, services, years_experience, portfolio_url, plan")
     .eq("id", user.id)
     .single();
   const profile = profileRaw as {
@@ -36,9 +36,16 @@ export async function POST(request: Request) {
     phone: string | null; website: string | null;
     location: string | null; services: string[] | null;
     years_experience: number | null; portfolio_url: string | null;
+    plan: string;
   } | null;
 
-  // Check if pitch already cached
+  // Check AI pitch limits (cached pitches don't count — only new generations)
+  // Free: 10/month, Pro: 200/month, Agency: unlimited
+  const pitchLimits: Record<string, number> = { free: 10, pro: 200, agency: 999999 };
+  const plan = profile?.plan ?? "free";
+  const pitchLimit = pitchLimits[plan] ?? 10;
+
+  // Check if pitch already cached (doesn't count against limit)
   const { data: existingRaw } = await supabase
     .from("lead_pitches")
     .select("*")
@@ -48,6 +55,25 @@ export async function POST(request: Request) {
   const existing = existingRaw as LeadPitch | null;
   if (existing) {
     return NextResponse.json({ pitch: existing });
+  }
+
+  // Count pitches generated this month (only if not cached)
+  if (pitchLimit < 999999) {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const { count } = await supabase
+      .from("lead_pitches")
+      .select("id", { count: "exact", head: true })
+      .gte("generated_at", startOfMonth.toISOString());
+
+    if ((count ?? 0) >= pitchLimit) {
+      return NextResponse.json(
+        { error: `Monthly AI pitch limit reached (${pitchLimit}). ${plan === "free" ? "Upgrade to Pro for 200 pitches/month." : "Resets next month."}` },
+        { status: 403 }
+      );
+    }
   }
 
   // Fetch business data for the prompt

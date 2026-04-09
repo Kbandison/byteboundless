@@ -20,19 +20,19 @@ const PLANS = [
     key: "free",
     name: "Free Trial",
     price: "$0",
-    description: "3 searches, 50 results each",
+    description: "3 searches/mo, 50 results, 10 AI pitches",
   },
   {
     key: "pro",
     name: "Pro",
     price: "$29/mo",
-    description: "Unlimited searches, AI pitches, saved lists",
+    description: "50 searches/mo, 500 results, 200 AI pitches",
   },
   {
     key: "agency",
     name: "Agency",
     price: "$79/mo",
-    description: "Everything in Pro + team seats, priority scraping",
+    description: "200 searches/mo, 1K results, unlimited AI pitches",
   },
 ];
 

@@ -35,15 +35,18 @@ export async function POST(request: Request) {
 
   const profile = profileRaw as Profile | null;
 
-  if (profile && profile.searches_used >= profile.searches_limit && profile.plan === "free") {
+  const planSearchLimits: Record<string, number> = { free: 3, pro: 50, agency: 200 };
+  const searchLimit = planSearchLimits[profile?.plan ?? "free"] ?? 3;
+
+  if (profile && profile.searches_used >= searchLimit) {
     return NextResponse.json(
-      { error: "Search limit reached. Upgrade to Pro for unlimited searches." },
+      { error: `Monthly search limit reached (${searchLimit}). ${profile.plan === "free" ? "Upgrade to Pro for 50 searches/month." : "Your plan resets next billing cycle."}` },
       { status: 403 }
     );
   }
 
   // Enforce plan-based max results limit
-  const planMaxResults: Record<string, number> = { free: 50, pro: 200, agency: 500 };
+  const planMaxResults: Record<string, number> = { free: 50, pro: 500, agency: 1000 };
   const maxAllowed = planMaxResults[profile?.plan ?? "free"] ?? 50;
   const clampedOptions = {
     ...(options ?? { radius: "nearby", maxResults: 50, enrich: true }),

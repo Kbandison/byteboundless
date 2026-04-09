@@ -50,8 +50,8 @@ function Toggle({
    ------------------------------------------------------------------ */
 const PLAN_LIMITS: Record<string, { options: number[]; max: number }> = {
   free: { options: [25, 50], max: 50 },
-  pro: { options: [25, 50, 100, 200], max: 200 },
-  agency: { options: [25, 50, 100, 200, 500], max: 500 },
+  pro: { options: [25, 50, 100, 200, 500], max: 500 },
+  agency: { options: [25, 50, 100, 200, 500, 1000], max: 1000 },
 };
 
 /* ------------------------------------------------------------------

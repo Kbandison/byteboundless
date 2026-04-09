@@ -36,7 +36,7 @@ export interface RawBusiness {
   leadReasons?: string[];
 }
 
-export type ProgressCallback = (phase: string, current: number, total: number) => void;
+export type ProgressCallback = (phase: string, current: number, total: number) => void | Promise<void>;
 
 // ──────────────────────────────────────────────────────────────────
 // Helpers
@@ -374,9 +374,9 @@ async function collectListingUrls(opts: ScrapeOptions): Promise<{ url: string; n
 // Phase 2: Parallel detail extraction
 // ──────────────────────────────────────────────────────────────────
 async function extractPlaceDetails(page: Page, listingUrl: string) {
-  await page.goto(listingUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
-  await page.waitForSelector("h1.DUwDvf, h1.lfPIob", { timeout: 10000 });
-  await sleep(400);
+  await page.goto(listingUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
+  await page.waitForSelector("h1.DUwDvf, h1.lfPIob", { timeout: 8000 });
+  await sleep(300);
 
   return await page.evaluate(() => {
     const h1 = document.querySelector("h1.DUwDvf, h1.lfPIob");
@@ -426,8 +426,8 @@ async function scrapeDetailsParallel(
   const targetCity = opts.location.split(",")[0].trim().toLowerCase();
   const targetState = (opts.location.split(",")[1] || "").trim().toLowerCase();
 
-  // Use fewer parallel contexts to avoid rate limiting
-  const actualContexts = Math.min(contexts, 2);
+  // Single context to avoid Google rate limiting (fewer stuck pages = actually faster)
+  const actualContexts = 1;
   let cursor = 0;
   const workers = Array.from({ length: Math.min(actualContexts, listings.length) }, async () => {
     const context = await browser.newContext({
@@ -440,8 +440,8 @@ async function scrapeDetailsParallel(
       const idx = cursor++;
       const listing = listings[idx];
 
-      // Hard 45s timeout per listing to prevent hanging
-      const listingTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 45000));
+      // Hard 25s timeout per listing to prevent hanging
+      const listingTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 25000));
 
       const result = await Promise.race([
         (async () => {

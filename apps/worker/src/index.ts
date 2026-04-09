@@ -17,7 +17,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 async function claimJob() {
-  // Find the oldest pending job and claim it atomically
   const { data: jobs } = await supabase
     .from("scrape_jobs")
     .select("*")
@@ -28,13 +27,11 @@ async function claimJob() {
   if (!jobs || jobs.length === 0) return null;
 
   const job = jobs[0];
-
-  // Claim it by setting status to running (optimistic — if two workers race, one gets an error)
   const { data: claimed, error } = await supabase
     .from("scrape_jobs")
     .update({ status: "running", phase: "collecting" } as never)
     .eq("id", job.id)
-    .eq("status", "pending") // only claim if still pending
+    .eq("status", "pending")
     .select("*")
     .single();
 
@@ -42,40 +39,79 @@ async function claimJob() {
   return claimed as Record<string, unknown>;
 }
 
-async function updateProgress(jobId: string, phase: string, current: number, total: number) {
+// Throttled progress updater — avoids hammering Supabase with rapid updates
+let lastProgressUpdate = 0;
+let pendingProgress: { jobId: string; phase: string; current: number; total: number } | null = null;
+let progressTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function flushProgress() {
+  if (!pendingProgress) return;
+  const { jobId, phase, current, total } = pendingProgress;
+  pendingProgress = null;
+  lastProgressUpdate = Date.now();
   await supabase
     .from("scrape_jobs")
-    .update({
-      phase,
-      progress_current: current,
-      progress_total: total,
-    } as never)
+    .update({ phase, progress_current: current, progress_total: total } as never)
     .eq("id", jobId);
 }
 
-async function writeBusiness(jobId: string, biz: RawBusiness) {
-  const enrichment = biz.enrichment || null;
-  const leadReasons = (biz.leadReasons || []).map((r) =>
-    typeof r === "string" ? { signal: r, weight: 0, detail: r } : r
-  );
+function updateProgress(jobId: string, phase: string, current: number, total: number) {
+  pendingProgress = { jobId, phase, current, total };
 
-  await supabase.from("businesses").insert({
-    job_id: jobId,
-    name: biz.name || "Unknown",
-    website: biz.website,
-    phone: biz.phone,
-    address: biz.address,
-    rating: biz.rating ? parseFloat(biz.rating) : null,
-    reviews: biz.reviews ? parseInt(biz.reviews, 10) : null,
-    category: biz.category,
-    unclaimed: biz.unclaimed,
-    enrichment,
-    lead_score: biz.leadScore ?? 0,
-    lead_reasons: leadReasons,
-  } as never);
+  // Always flush phase changes immediately
+  const timeSinceLast = Date.now() - lastProgressUpdate;
+  if (timeSinceLast > 1500) {
+    flushProgress();
+  } else if (!progressTimer) {
+    progressTimer = setTimeout(() => {
+      progressTimer = null;
+      flushProgress();
+    }, 1500 - timeSinceLast);
+  }
+}
+
+// Force flush (for phase transitions)
+async function forceFlush(jobId: string, phase: string, current: number, total: number) {
+  pendingProgress = null;
+  if (progressTimer) { clearTimeout(progressTimer); progressTimer = null; }
+  lastProgressUpdate = Date.now();
+  await supabase
+    .from("scrape_jobs")
+    .update({ phase, progress_current: current, progress_total: total } as never)
+    .eq("id", jobId);
+}
+
+async function writeBusinessBatch(jobId: string, businesses: RawBusiness[]) {
+  const rows = businesses.map((biz) => {
+    const enrichment = biz.enrichment || null;
+    const leadReasons = (biz.leadReasons || []).map((r) =>
+      typeof r === "string" ? { signal: r, weight: 0, detail: r } : r
+    );
+    return {
+      job_id: jobId,
+      name: biz.name || "Unknown",
+      website: biz.website,
+      phone: biz.phone,
+      address: biz.address,
+      rating: biz.rating ? parseFloat(biz.rating) : null,
+      reviews: biz.reviews ? parseInt(biz.reviews, 10) : null,
+      category: biz.category,
+      unclaimed: biz.unclaimed,
+      enrichment,
+      lead_score: biz.leadScore ?? 0,
+      lead_reasons: leadReasons,
+    };
+  });
+
+  // Insert in batches of 25
+  for (let i = 0; i < rows.length; i += 25) {
+    const batch = rows.slice(i, i + 25);
+    await supabase.from("businesses").insert(batch as never);
+  }
 }
 
 async function completeJob(jobId: string) {
+  await flushProgress();
   await supabase
     .from("scrape_jobs")
     .update({
@@ -89,10 +125,7 @@ async function completeJob(jobId: string) {
 async function failJob(jobId: string, error: string) {
   await supabase
     .from("scrape_jobs")
-    .update({
-      status: "failed",
-      error: error.slice(0, 500),
-    } as never)
+    .update({ status: "failed", error: error.slice(0, 500) } as never)
     .eq("id", jobId);
 }
 
@@ -111,16 +144,24 @@ async function processJob(job: Record<string, unknown>) {
         maxResults: options.maxResults,
         enrich: options.enrich,
       },
-      (phase, current, total) => {
-        updateProgress(jobId, phase, current, total);
+      async (phase, current, total) => {
+        // Force flush on phase transitions
+        if (phase === "enriching" && current === 0) {
+          console.log(`[Worker] Phase: enriching (${total} businesses)`);
+          await forceFlush(jobId, phase, current, total);
+        } else if (phase === "scoring" && current === 0) {
+          console.log(`[Worker] Phase: scoring (${total} businesses)`);
+          await forceFlush(jobId, phase, current, total);
+        } else if (phase === "collecting" || phase === "done") {
+          await forceFlush(jobId, phase, current, total);
+        } else {
+          updateProgress(jobId, phase, current, total);
+        }
       }
     );
 
     console.log(`[Worker] Writing ${results.length} businesses to DB`);
-
-    for (const biz of results) {
-      await writeBusiness(jobId, biz);
-    }
+    await writeBusinessBatch(jobId, results);
 
     await completeJob(jobId);
     console.log(`[Worker] Job ${jobId} completed — ${results.length} results`);

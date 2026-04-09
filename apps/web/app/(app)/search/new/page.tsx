@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Search, MapPin, Globe, SlidersHorizontal, Loader2 } from "lucide-react";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
+import { HelpTip } from "@/components/ui/help-tip";
 import { BUSINESS_CATEGORIES, US_CITIES } from "@/lib/autocomplete-data";
 import { cn } from "@/lib/utils";
 
@@ -180,6 +181,7 @@ function NewSearchForm() {
           >
             <Globe className="h-4 w-4 text-[var(--color-text-secondary)]" />
             Only return results with websites
+            <HelpTip text="Filters out businesses that appear in Google Maps but don't have a website URL listed. Useful for focusing on businesses with existing sites to rebuild." side="right" />
           </label>
           <Toggle
             id="strict-mode"
@@ -218,6 +220,7 @@ function NewSearchForm() {
               className="text-sm text-[var(--color-text-primary)]"
             >
               Visit websites and collect intel
+              <HelpTip text="When enabled, we visit each business's website to detect their tech stack, find emails, check social profiles, and assess mobile-friendliness. This powers the lead score and AI pitches." side="right" />
             </label>
             <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
               Enrich results with tech stack, performance, and contact data

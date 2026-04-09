@@ -9,6 +9,7 @@ import {
   Smartphone, Clock, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HelpTip } from "@/components/ui/help-tip";
 import { getScoreColor, TECH_STACK_COLORS } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
 
@@ -409,7 +410,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <div className="flex items-start gap-5">
               <ScoreBadgeLarge score={lead.score} />
               <div className="flex-1">
-                <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold mb-3">Lead Score Breakdown</h2>
+                <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold mb-3 flex items-center gap-2">Lead Score Breakdown <HelpTip text="Score from 0-100 based on 12+ signals: tech stack age, mobile-friendliness, page speed, social presence, review count, and more. Higher = more likely to need your services." /></h2>
                 <div className="space-y-2">
                   {lead.leadReasons.map((reason, i) => (
                     <div key={i} className="flex items-start gap-3">

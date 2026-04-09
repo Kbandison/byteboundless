@@ -15,6 +15,7 @@ export const APP_NAV_LINKS = [
   { label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" },
   { label: "Saved Lists", href: "/lists", icon: "Bookmark" },
   { label: "Settings", href: "/settings", icon: "Settings" },
+  { label: "Guide", href: "/guide", icon: "BookOpen" },
 ] as const;
 
 export const FOOTER_LINKS = {

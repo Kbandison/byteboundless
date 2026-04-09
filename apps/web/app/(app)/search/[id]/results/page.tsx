@@ -19,6 +19,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HelpTip } from "@/components/ui/help-tip";
 import { TECH_STACK_COLORS, getScoreColor } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
 
@@ -295,6 +296,7 @@ export default function ResultsPage({
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
             {businesses.length} results &middot;{" "}
             <span className="text-emerald-600 font-medium">{hotCount} hot leads</span>
+            <HelpTip text="Hot leads have a score of 80+, meaning they have strong signals that they need a website rebuild — outdated builders, no mobile support, stale content, etc." />
           </p>
         </div>
         <div className="flex items-center gap-3">

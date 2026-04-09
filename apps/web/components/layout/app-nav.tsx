@@ -11,6 +11,7 @@ import {
   X,
   Shield,
   LogOut,
+  BookOpen,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { APP_NAV_LINKS } from "@/lib/constants";
@@ -21,6 +22,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
   Bookmark,
   Settings,
+  BookOpen,
 };
 
 export function AppNav() {

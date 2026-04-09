@@ -1,10 +1,69 @@
 "use client";
 
-import { useState } from "react";
-import { User, CreditCard, Key, AlertTriangle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { User, CreditCard, Key, AlertTriangle, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SettingsPage() {
-  const [email] = useState("dev@example.com");
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [plan, setPlan] = useState("free");
+  const [searchesUsed, setSearchesUsed] = useState(0);
+  const [searchesLimit, setSearchesLimit] = useState(3);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    async function fetchProfile() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setEmail(user.email ?? "");
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (data) {
+        const p = data as Record<string, unknown>;
+        setPlan(p.plan as string);
+        setSearchesUsed(p.searches_used as number);
+        setSearchesLimit(p.searches_limit as number);
+      }
+      setLoading(false);
+    }
+    fetchProfile();
+  }, []);
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Delete profile (cascades to jobs, businesses, lists, etc.)
+    await supabase.from("profiles").delete().eq("id", user.id);
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 md:px-8 py-20 flex flex-col items-center">
+        <Loader2 className="w-8 h-8 text-[var(--color-accent)] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-6 md:px-8 py-12">
@@ -32,7 +91,16 @@ export default function SettingsPage() {
                 readOnly
                 className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-sm text-[var(--color-text-secondary)]"
               />
+              <p className="text-xs text-[var(--color-text-dim)] mt-1.5">
+                Email changes are managed through magic link authentication.
+              </p>
             </div>
+            <button
+              onClick={handleSignOut}
+              className="text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] px-4 py-2 rounded-lg hover:border-[var(--color-border-hover)] hover:text-[var(--color-text-primary)] transition-colors"
+            >
+              Sign Out
+            </button>
           </div>
         </section>
 
@@ -46,19 +114,23 @@ export default function SettingsPage() {
           </div>
           <div className="flex items-center justify-between p-4 rounded-lg bg-[var(--color-bg-secondary)]">
             <div>
-              <p className="text-sm font-medium">Free Trial</p>
+              <p className="text-sm font-medium capitalize">{plan} Plan</p>
               <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                3 searches remaining
+                {searchesLimit === 999999
+                  ? "Unlimited searches"
+                  : `${searchesLimit - searchesUsed} searches remaining`}
               </p>
             </div>
-            <button className="text-sm text-[var(--color-accent)] font-medium hover:underline">
-              Upgrade to Pro
-            </button>
+            {plan === "free" && (
+              <a href="/pricing" className="text-sm text-[var(--color-accent)] font-medium hover:underline">
+                Upgrade to Pro
+              </a>
+            )}
           </div>
           <div className="mt-4 grid grid-cols-3 gap-4">
             <div className="p-3 rounded-lg bg-[var(--color-bg-secondary)] text-center">
               <p className="text-2xl font-bold font-[family-name:var(--font-mono)]">
-                0
+                {searchesUsed}
               </p>
               <p className="text-xs text-[var(--color-text-dim)] mt-1">
                 Searches used
@@ -66,24 +138,24 @@ export default function SettingsPage() {
             </div>
             <div className="p-3 rounded-lg bg-[var(--color-bg-secondary)] text-center">
               <p className="text-2xl font-bold font-[family-name:var(--font-mono)]">
-                0
+                {searchesLimit === 999999 ? "∞" : searchesLimit}
               </p>
               <p className="text-xs text-[var(--color-text-dim)] mt-1">
-                Results generated
+                Search limit
               </p>
             </div>
             <div className="p-3 rounded-lg bg-[var(--color-bg-secondary)] text-center">
-              <p className="text-2xl font-bold font-[family-name:var(--font-mono)]">
-                0
+              <p className="text-2xl font-bold font-[family-name:var(--font-mono)] capitalize">
+                {plan}
               </p>
               <p className="text-xs text-[var(--color-text-dim)] mt-1">
-                Pitches generated
+                Current plan
               </p>
             </div>
           </div>
         </section>
 
-        {/* API */}
+        {/* API Access */}
         <section className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
           <div className="flex items-center gap-3 mb-4">
             <Key className="w-5 h-5 text-[var(--color-text-dim)]" />
@@ -91,12 +163,18 @@ export default function SettingsPage() {
               API Access
             </h2>
           </div>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            API access is available on the Agency plan.{" "}
-            <button className="text-[var(--color-accent)] hover:underline">
-              Upgrade to unlock
-            </button>
-          </p>
+          {plan === "agency" ? (
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              API access coming soon. You&apos;ll be able to manage API keys here.
+            </p>
+          ) : (
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              API access is available on the Agency plan.{" "}
+              <a href="/pricing" className="text-[var(--color-accent)] hover:underline">
+                Upgrade to unlock
+              </a>
+            </p>
+          )}
         </section>
 
         {/* Danger Zone */}
@@ -111,9 +189,30 @@ export default function SettingsPage() {
             Permanently delete your account and all associated data. This action
             cannot be undone.
           </p>
-          <button className="text-sm text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-50 transition-colors">
-            Delete Account
-          </button>
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="text-sm text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              Delete Account
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="text-sm text-white bg-red-600 px-4 py-2 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Yes, delete my account"}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="text-sm text-[var(--color-text-secondary)] px-4 py-2"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </section>
       </div>
     </div>

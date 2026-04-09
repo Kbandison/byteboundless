@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Bookmark,
@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   Shield,
+  LogOut,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { APP_NAV_LINKS } from "@/lib/constants";
@@ -102,6 +103,16 @@ export function AppNav() {
               <Plus className="w-4 h-4" />
               New Search
             </Link>
+            <button
+              onClick={async () => {
+                const supabase = createClient();
+                await supabase.auth.signOut();
+                window.location.href = "/";
+              }}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors duration-200"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Mobile Toggle */}
@@ -144,7 +155,7 @@ export function AppNav() {
                 </Link>
               );
             })}
-            <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
+            <div className="mt-4 pt-4 border-t border-[var(--color-border)] space-y-2">
               <Link
                 href="/search/new"
                 onClick={() => setMobileOpen(false)}
@@ -153,6 +164,17 @@ export function AppNav() {
                 <Plus className="w-4 h-4" />
                 New Search
               </Link>
+              <button
+                onClick={async () => {
+                  const supabase = createClient();
+                  await supabase.auth.signOut();
+                  window.location.href = "/";
+                }}
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors duration-200"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
             </div>
           </div>
         </div>

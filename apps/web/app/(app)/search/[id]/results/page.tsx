@@ -250,7 +250,25 @@ export default function ResultsPage({
               </span>
             )}
           </button>
-          <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)] transition-all duration-300">
+          <button
+            onClick={() => {
+              const headers = ["Score", "Name", "Category", "Website", "Tech", "Emails", "Socials", "Rating", "Reviews", "Address"];
+              const rows = sorted.map((b) =>
+                [b.score, b.name, b.category ?? "", b.website ?? "", b.techLabel, b.emails, b.socials, b.rating, b.reviews, b.address ?? ""]
+                  .map((v) => { const s = String(v).replace(/"/g, '""'); return /[",\n]/.test(s) ? `"${s}"` : s; })
+                  .join(",")
+              );
+              const csv = [headers.join(","), ...rows].join("\n");
+              const blob = new Blob([csv], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${jobQuery}-${jobLocation}-results.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)] transition-all duration-300"
+          >
             <Download className="w-4 h-4" />
             Export CSV
           </button>

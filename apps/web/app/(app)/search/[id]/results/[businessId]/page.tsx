@@ -75,6 +75,10 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [pitchError, setPitchError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
+  const [showListDropdown, setShowListDropdown] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [contacted, setContacted] = useState(false);
 
   // Fetch business data
   useEffect(() => {
@@ -105,6 +109,13 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   }, [businessId]);
 
   useEffect(() => { if (lead) fetchPitch(); }, [lead, fetchPitch]);
+
+  // Fetch user's saved lists for the dropdown
+  useEffect(() => {
+    fetch("/api/lists").then((r) => r.json()).then((d) => {
+      if (d.lists) setLists((d.lists as { id: string; name: string }[]));
+    });
+  }, []);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -262,9 +273,59 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           )}
 
-          <div className="flex gap-3">
-            <button className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-[var(--color-border)] text-sm font-medium hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-all duration-300"><Bookmark className="w-4 h-4" /> Save to List</button>
-            <button className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-[var(--color-border)] text-sm font-medium hover:border-emerald-500 hover:text-emerald-600 transition-all duration-300"><CheckCircle2 className="w-4 h-4" /> Mark Contacted</button>
+          {/* Actions */}
+          <div className="space-y-3">
+            {saveMsg && (
+              <p className={`text-xs px-3 py-2 rounded-lg ${saveMsg.includes("Error") ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"}`}>{saveMsg}</p>
+            )}
+            <div className="relative">
+              <button
+                onClick={() => setShowListDropdown(!showListDropdown)}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-[var(--color-border)] text-sm font-medium hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-all duration-300"
+              >
+                <Bookmark className="w-4 h-4" /> Save to List
+              </button>
+              {showListDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg shadow-lg z-10 overflow-hidden">
+                  {lists.length > 0 ? lists.map((list) => (
+                    <button
+                      key={list.id}
+                      onClick={async () => {
+                        const res = await fetch("/api/lists/items", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ listId: list.id, businessId }),
+                        });
+                        const data = await res.json();
+                        setSaveMsg(res.ok ? `Saved to "${list.name}"` : data.error || "Error saving");
+                        setShowListDropdown(false);
+                        setTimeout(() => setSaveMsg(null), 3000);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--color-bg-secondary)] transition-colors"
+                    >
+                      {list.name}
+                    </button>
+                  )) : (
+                    <div className="px-4 py-3 text-sm text-[var(--color-text-dim)]">
+                      No lists yet.{" "}
+                      <a href="/lists" className="text-[var(--color-accent)] hover:underline">Create one</a>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setContacted(true)}
+              disabled={contacted}
+              className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border text-sm font-medium transition-all duration-300 ${
+                contacted
+                  ? "border-emerald-500 text-emerald-600 bg-emerald-50"
+                  : "border-[var(--color-border)] hover:border-emerald-500 hover:text-emerald-600"
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              {contacted ? "Contacted" : "Mark Contacted"}
+            </button>
           </div>
         </div>
 

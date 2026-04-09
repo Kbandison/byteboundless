@@ -426,8 +426,10 @@ async function scrapeDetailsParallel(
   const targetCity = opts.location.split(",")[0].trim().toLowerCase();
   const targetState = (opts.location.split(",")[1] || "").trim().toLowerCase();
 
+  // Use fewer parallel contexts to avoid rate limiting
+  const actualContexts = Math.min(contexts, 2);
   let cursor = 0;
-  const workers = Array.from({ length: Math.min(contexts, listings.length) }, async () => {
+  const workers = Array.from({ length: Math.min(actualContexts, listings.length) }, async () => {
     const context = await browser.newContext({
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       viewport: { width: 1400, height: 900 },
@@ -438,27 +440,43 @@ async function scrapeDetailsParallel(
       const idx = cursor++;
       const listing = listings[idx];
 
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const details = await extractPlaceDetails(page, listing.url);
-          const placeId = extractPlaceId(listing.url);
-          if (placeId && seenIds.has(placeId)) break;
+      // Hard 45s timeout per listing to prevent hanging
+      const listingTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 45000));
 
-          if (opts.strict && details.address) {
-            const parts = details.address.split(",").map((s: string) => s.trim());
-            const city = parts.length >= 2 ? parts[parts.length - 2].toLowerCase() : "";
-            const stateZip = parts.length >= 1 ? parts[parts.length - 1].toLowerCase() : "";
-            if (city !== targetCity || (targetState && !stateZip.includes(targetState))) break;
+      const result = await Promise.race([
+        (async () => {
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              const details = await extractPlaceDetails(page, listing.url);
+              const placeId = extractPlaceId(listing.url);
+              if (placeId && seenIds.has(placeId)) return null;
+
+              if (opts.strict && details.address) {
+                const parts = details.address.split(",").map((s: string) => s.trim());
+                const city = parts.length >= 2 ? parts[parts.length - 2].toLowerCase() : "";
+                const stateZip = parts.length >= 1 ? parts[parts.length - 1].toLowerCase() : "";
+                if (city !== targetCity || (targetState && !stateZip.includes(targetState))) return null;
+              }
+
+              return details;
+            } catch {
+              if (attempt === 0) { await sleep(1500); continue; }
+            }
           }
+          return null;
+        })(),
+        listingTimeout,
+      ]);
 
-          if (placeId) seenIds.add(placeId);
-          businesses.push({ ...details, mapsUrl: listing.url });
-          onProgress("extracting", businesses.length, listings.length);
-          break;
-        } catch {
-          if (attempt === 0) { await sleep(1500); continue; }
-        }
+      if (result) {
+        const placeId = extractPlaceId(listing.url);
+        if (placeId) seenIds.add(placeId);
+        businesses.push({ ...result, mapsUrl: listing.url });
       }
+      onProgress("extracting", idx + 1, listings.length);
+
+      // Small delay between listings to avoid rate limiting
+      await sleep(500);
     }
     await context.close();
   });

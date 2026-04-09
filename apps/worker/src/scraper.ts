@@ -575,7 +575,8 @@ export async function runUrlEnrich(urls: string[], onProgress: ProgressCallback)
     const url = (e?.finalUrl as string) || b.website;
     if (!url || !e?.reachable) continue;
     try {
-      const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile`;
+      const psiKey = process.env.GOOGLE_PSI_API_KEY ? `&key=${process.env.GOOGLE_PSI_API_KEY}` : "";
+        const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile${psiKey}`;
       const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(20000) });
       if (psiRes.ok) {
         const psi = await psiRes.json();
@@ -641,7 +642,8 @@ export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallbac
       if (!url || !e?.reachable) continue;
 
       try {
-        const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile`;
+        const psiKey = process.env.GOOGLE_PSI_API_KEY ? `&key=${process.env.GOOGLE_PSI_API_KEY}` : "";
+        const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile${psiKey}`;
         const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(20000) });
         if (psiRes.ok) {
           const psi = await psiRes.json();

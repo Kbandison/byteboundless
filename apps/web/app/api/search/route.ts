@@ -38,16 +38,33 @@ export async function POST(request: Request) {
   const planSearchLimits: Record<string, number> = { free: 3, pro: 50, agency: 200 };
   const searchLimit = planSearchLimits[profile?.plan ?? "free"] ?? 3;
 
+  const overageCredits = (profile as Record<string, unknown>)?.overage_credits as number ?? 0;
+
   if (profile && profile.searches_used >= searchLimit) {
-    return NextResponse.json(
-      { error: `Monthly search limit reached (${searchLimit}). ${profile.plan === "free" ? "Upgrade to Pro for 50 searches/month." : "Your plan resets next billing cycle."}` },
-      { status: 403 }
-    );
+    if (profile.plan === "free") {
+      return NextResponse.json(
+        { error: "Search limit reached. Upgrade to Pro for 50 searches/month." },
+        { status: 403 }
+      );
+    }
+    // Paid users can use overage credits
+    if (overageCredits <= 0) {
+      return NextResponse.json(
+        { error: `Monthly search limit reached (${searchLimit}). Purchase extra results from Settings to continue.` },
+        { status: 403 }
+      );
+    }
+    // Deduct overage credits (1 search = deducts from overage pool)
+    await supabase
+      .from("profiles")
+      .update({ overage_credits: overageCredits - 1 } as never)
+      .eq("id", user.id);
   }
 
-  // Enforce plan-based max results limit
+  // Enforce plan-based max results limit (overage credits extend the max)
   const planMaxResults: Record<string, number> = { free: 50, pro: 500, agency: 1000 };
-  const maxAllowed = planMaxResults[profile?.plan ?? "free"] ?? 50;
+  const baseMax = planMaxResults[profile?.plan ?? "free"] ?? 50;
+  const maxAllowed = overageCredits > 0 ? baseMax + overageCredits : baseMax;
   const clampedOptions = {
     ...(options ?? { radius: "nearby", maxResults: 50, enrich: true }),
     maxResults: Math.min(options?.maxResults ?? 50, maxAllowed),

@@ -55,6 +55,8 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userId, setUserId] = useState("");
+  const [overageCredits, setOverageCredits] = useState(0);
+  const [buyingCredits, setBuyingCredits] = useState(false);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -83,6 +85,7 @@ export default function SettingsPage() {
         setServices((p.services as string[]) ?? []);
         setYearsExperience(p.years_experience ? String(p.years_experience) : "");
         setPortfolioUrl((p.portfolio_url as string) ?? "");
+        setOverageCredits((p.overage_credits as number) ?? 0);
       }
       setLoading(false);
     }
@@ -367,8 +370,48 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
+          {/* Overage credits */}
+          {(plan === "pro" || plan === "agency") && (
+            <div className="mt-6 p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-sm font-medium">Extra Result Credits</p>
+                  <p className="text-xs text-[var(--color-text-dim)]">
+                    {overageCredits > 0
+                      ? `${overageCredits} extra results available`
+                      : "No extra credits — purchase when you need more"}
+                  </p>
+                </div>
+                <span className="text-xl font-bold font-[family-name:var(--font-mono)]">
+                  {overageCredits}
+                </span>
+              </div>
+              <button
+                onClick={async () => {
+                  setBuyingCredits(true);
+                  try {
+                    const res = await fetch("/api/billing/checkout", { method: "POST" });
+                    const data = await res.json();
+                    if (data.url) {
+                      window.location.href = data.url;
+                    } else {
+                      alert(data.error || "Failed to start checkout");
+                    }
+                  } catch {
+                    alert("Network error");
+                  }
+                  setBuyingCredits(false);
+                }}
+                disabled={buyingCredits}
+                className="w-full mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-[var(--color-accent)] text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 disabled:opacity-50 transition-all"
+              >
+                {buyingCredits ? "Redirecting to checkout..." : "Buy 200 Extra Results — $4"}
+              </button>
+            </div>
+          )}
+
           <p className="text-xs text-[var(--color-text-dim)] mt-4">
-            Billing is managed through Stripe. Plan changes will be available once payment processing is set up.
+            Billing is managed through Stripe.
           </p>
         </section>
 

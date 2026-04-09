@@ -56,9 +56,10 @@ export default function SetupPage() {
   }, []);
 
   const handleFinish = async () => {
+    if (!userId) return;
     setSaving(true);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("profiles")
       .update({
         full_name: fullName || null,
@@ -72,17 +73,27 @@ export default function SetupPage() {
         onboarding_complete: true,
       } as never)
       .eq("id", userId);
-    router.push("/dashboard");
+
+    if (error) {
+      console.error("Setup save error:", error);
+      // Try simpler update if columns don't exist yet
+      await supabase
+        .from("profiles")
+        .update({ onboarding_complete: true } as never)
+        .eq("id", userId);
+    }
+    window.location.href = "/dashboard";
   };
 
   const handleSkip = async () => {
+    if (!userId) return;
     setSaving(true);
     const supabase = createClient();
     await supabase
       .from("profiles")
       .update({ onboarding_complete: true } as never)
       .eq("id", userId);
-    router.push("/dashboard");
+    window.location.href = "/dashboard";
   };
 
   const totalSteps = 3;

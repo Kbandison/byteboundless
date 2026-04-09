@@ -28,10 +28,15 @@ export async function POST(request: Request) {
   // Get user profile for pitch personalization
   const { data: profileRaw } = await supabase
     .from("profiles")
-    .select("full_name, company_name, phone, website")
+    .select("full_name, company_name, phone, website, location, services, years_experience, portfolio_url")
     .eq("id", user.id)
     .single();
-  const profile = profileRaw as { full_name: string | null; company_name: string | null; phone: string | null; website: string | null } | null;
+  const profile = profileRaw as {
+    full_name: string | null; company_name: string | null;
+    phone: string | null; website: string | null;
+    location: string | null; services: string[] | null;
+    years_experience: number | null; portfolio_url: string | null;
+  } | null;
 
   // Check if pitch already cached
   const { data: existingRaw } = await supabase
@@ -88,11 +93,15 @@ ${hasWebsite
     ? "Generate outreach materials explaining why they need a BETTER website based on the enrichment data."
     : "Generate outreach materials explaining why they NEED a website. They have zero web presence — this is a huge opportunity."}
 
-The freelancer's info for the email signature:
+The freelancer's info for the email signature and pitch context:
 Name: ${profile?.full_name || "[Your Name]"}
 Company: ${profile?.company_name || "[Your Company]"}
 Phone: ${profile?.phone || ""}
 Website: ${profile?.website || ""}
+Portfolio: ${profile?.portfolio_url || ""}
+Location: ${profile?.location || ""}
+Services: ${profile?.services?.join(", ") || "Web development"}
+Experience: ${profile?.years_experience ? `${profile.years_experience}+ years` : ""}
 
 Return ONLY a raw JSON object (no markdown, no code fences, no explanation) with these exact keys:
 {"pitchAngle": "one paragraph", "improvementSuggestions": ["suggestion 1", "suggestion 2", "suggestion 3"], "draftEmail": "email text — sign off with the freelancer's real name and company if provided, not [Your Name]"}`;

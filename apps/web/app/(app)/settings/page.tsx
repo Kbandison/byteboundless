@@ -4,7 +4,16 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { User, CreditCard, AlertTriangle, Loader2, Check, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { AutocompleteInput } from "@/components/ui/autocomplete-input";
+import { US_CITIES } from "@/lib/autocomplete-data";
 import { cn } from "@/lib/utils";
+
+const SERVICE_OPTIONS = [
+  "Web Design", "Web Development", "E-Commerce", "SEO", "Landing Pages",
+  "WordPress", "Shopify", "Website Redesign", "Website Maintenance",
+  "Branding", "UI/UX Design", "Mobile-Responsive Design", "Custom Web Apps",
+  "Email Marketing", "Social Media",
+];
 
 const PLANS = [
   {
@@ -33,6 +42,10 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState("");
   const [website, setWebsite] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [location, setLocation] = useState("");
+  const [services, setServices] = useState<string[]>([]);
+  const [yearsExperience, setYearsExperience] = useState("");
+  const [portfolioUrl, setPortfolioUrl] = useState("");
   const [plan, setPlan] = useState("free");
   const [searchesUsed, setSearchesUsed] = useState(0);
   const [searchesLimit, setSearchesLimit] = useState(3);
@@ -66,6 +79,10 @@ export default function SettingsPage() {
         setPhone((p.phone as string) ?? "");
         setWebsite((p.website as string) ?? "");
         setCompanyName((p.company_name as string) ?? "");
+        setLocation((p.location as string) ?? "");
+        setServices((p.services as string[]) ?? []);
+        setYearsExperience(p.years_experience ? String(p.years_experience) : "");
+        setPortfolioUrl((p.portfolio_url as string) ?? "");
       }
       setLoading(false);
     }
@@ -82,6 +99,10 @@ export default function SettingsPage() {
         phone: phone || null,
         website: website || null,
         company_name: companyName || null,
+        location: location || null,
+        services: services.length > 0 ? services : [],
+        years_experience: yearsExperience ? parseInt(yearsExperience, 10) : null,
+        portfolio_url: portfolioUrl || null,
       } as never)
       .eq("id", userId);
     setSaving(false);
@@ -180,6 +201,68 @@ export default function SettingsPage() {
                 placeholder="https://smithwebdesign.com"
                 className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-sm placeholder:text-[var(--color-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
               />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-1.5">
+                Portfolio URL
+              </label>
+              <input
+                type="url"
+                value={portfolioUrl}
+                onChange={(e) => setPortfolioUrl(e.target.value)}
+                placeholder="https://portfolio.example.com"
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-sm placeholder:text-[var(--color-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-1.5">
+                Location
+              </label>
+              <AutocompleteInput
+                value={location}
+                onChange={setLocation}
+                suggestions={US_CITIES}
+                placeholder="Atlanta, GA"
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-1.5">
+                Years of Experience
+              </label>
+              <select
+                value={yearsExperience}
+                onChange={(e) => setYearsExperience(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              >
+                <option value="">Select...</option>
+                <option value="1">Less than 1 year</option>
+                <option value="2">1-2 years</option>
+                <option value="3">3-5 years</option>
+                <option value="7">5-10 years</option>
+                <option value="10">10+ years</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-2">
+                Services
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {SERVICE_OPTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setServices((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])}
+                    className={cn(
+                      "text-xs px-3 py-1.5 rounded-lg border transition-all duration-200",
+                      services.includes(s)
+                        ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                        : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]"
+                    )}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="sm:col-span-2">
               <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-1.5">

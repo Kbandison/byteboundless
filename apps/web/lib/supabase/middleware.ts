@@ -34,7 +34,9 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/dashboard") ||
     request.nextUrl.pathname.startsWith("/search") ||
     request.nextUrl.pathname.startsWith("/lists") ||
-    request.nextUrl.pathname.startsWith("/settings");
+    request.nextUrl.pathname.startsWith("/settings") ||
+    request.nextUrl.pathname.startsWith("/admin") ||
+    request.nextUrl.pathname === "/setup";
 
   if (!user && isAppRoute) {
     const url = request.nextUrl.clone();
@@ -51,6 +53,22 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
+  }
+
+  // Redirect users who haven't completed onboarding
+  if (user && isAppRoute && request.nextUrl.pathname !== "/setup") {
+    const { data } = await supabase
+      .from("profiles")
+      .select("onboarding_complete")
+      .eq("id", user.id)
+      .single();
+
+    const profile = data as { onboarding_complete: boolean } | null;
+    if (profile && !profile.onboarding_complete) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/setup";
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

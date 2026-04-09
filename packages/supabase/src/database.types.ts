@@ -18,6 +18,11 @@ export interface Database {
           phone: string | null;
           website: string | null;
           company_name: string | null;
+          location: string | null;
+          services: string[];
+          years_experience: number | null;
+          portfolio_url: string | null;
+          onboarding_complete: boolean;
           created_at: string;
         };
         Insert: {
@@ -32,6 +37,11 @@ export interface Database {
           phone?: string | null;
           website?: string | null;
           company_name?: string | null;
+          location?: string | null;
+          services?: string[];
+          years_experience?: number | null;
+          portfolio_url?: string | null;
+          onboarding_complete?: boolean;
           created_at?: string;
         };
         Update: {
@@ -46,6 +56,11 @@ export interface Database {
           phone?: string | null;
           website?: string | null;
           company_name?: string | null;
+          location?: string | null;
+          services?: string[];
+          years_experience?: number | null;
+          portfolio_url?: string | null;
+          onboarding_complete?: boolean;
           created_at?: string;
         };
       };

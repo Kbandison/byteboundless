@@ -335,8 +335,6 @@ async function collectListingUrls(opts: ScrapeOptions): Promise<{ url: string; n
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
-      "--single-process",
-      "--no-zygote",
     ],
   });
   const context = await browser.newContext({
@@ -420,8 +418,6 @@ async function scrapeDetailsParallel(
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
-      "--single-process",
-      "--no-zygote",
     ],
   });
   const businesses: RawBusiness[] = [];

@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y \
 COPY package.json ./
 RUN npm install
 
-# Install the exact Playwright browsers matching the npm package
-RUN npx playwright install chromium --with-deps
+# Install ALL Playwright browsers + deps (chromium + headless shell)
+RUN npx playwright install --with-deps
 
 # Copy source and build
 COPY tsconfig.json ./

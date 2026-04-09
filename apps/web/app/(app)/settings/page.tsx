@@ -5,7 +5,6 @@ import Link from "next/link";
 import { User, CreditCard, AlertTriangle, Loader2, Check, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
-import { US_CITIES } from "@/lib/autocomplete-data";
 import { cn } from "@/lib/utils";
 
 const SERVICE_OPTIONS = [
@@ -224,7 +223,7 @@ export default function SettingsPage() {
               <AutocompleteInput
                 value={location}
                 onChange={setLocation}
-                suggestions={US_CITIES}
+                apiEndpoint="/api/cities"
                 placeholder="Atlanta, GA"
               />
             </div>

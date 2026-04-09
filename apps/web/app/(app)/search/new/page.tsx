@@ -6,7 +6,7 @@ import { Search, MapPin, Globe, SlidersHorizontal, Loader2, Lock } from "lucide-
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { HelpTip } from "@/components/ui/help-tip";
 import { usePlan, isPaidPlan } from "@/hooks/use-plan";
-import { BUSINESS_CATEGORIES, US_CITIES } from "@/lib/autocomplete-data";
+import { BUSINESS_CATEGORIES } from "@/lib/autocomplete-data";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------
@@ -244,8 +244,8 @@ function NewSearchForm() {
           id="location"
           value={location}
           onChange={setLocation}
-          suggestions={US_CITIES}
-          placeholder="Buford, GA"
+          apiEndpoint="/api/cities"
+          placeholder="Austin, TX"
           icon={<MapPin className="h-4 w-4" />}
         />
       </div>

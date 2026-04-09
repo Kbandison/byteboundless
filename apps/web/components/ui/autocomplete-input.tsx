@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 interface AutocompleteInputProps {
   id?: string;
   value: string;
   onChange: (value: string) => void;
-  suggestions: string[];
+  suggestions?: string[];
+  apiEndpoint?: string;
   placeholder?: string;
   icon?: React.ReactNode;
   className?: string;
@@ -18,6 +19,7 @@ export function AutocompleteInput({
   value,
   onChange,
   suggestions,
+  apiEndpoint,
   placeholder,
   icon,
   className,
@@ -26,6 +28,18 @@ export function AutocompleteInput({
   const [filtered, setFiltered] = useState<string[]>([]);
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const fetchFromApi = useCallback(async (q: string) => {
+    if (!apiEndpoint || q.length < 2) { setFiltered([]); setOpen(false); return; }
+    try {
+      const res = await fetch(`${apiEndpoint}?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      const results = (data.cities || data.results || []) as string[];
+      setFiltered(results);
+      setOpen(results.length > 0);
+    } catch { /* ignore */ }
+  }, [apiEndpoint]);
 
   useEffect(() => {
     if (!value.trim()) {
@@ -33,14 +47,24 @@ export function AutocompleteInput({
       setOpen(false);
       return;
     }
-    const lower = value.toLowerCase();
-    const matches = suggestions
-      .filter((s) => s.toLowerCase().includes(lower))
-      .slice(0, 8);
-    setFiltered(matches);
-    setOpen(matches.length > 0);
+
+    if (apiEndpoint) {
+      // Debounced API call
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => fetchFromApi(value), 250);
+      return () => clearTimeout(debounceRef.current);
+    }
+
+    if (suggestions) {
+      const lower = value.toLowerCase();
+      const matches = suggestions
+        .filter((s) => s.toLowerCase().includes(lower))
+        .slice(0, 8);
+      setFiltered(matches);
+      setOpen(matches.length > 0);
+    }
     setHighlightIdx(-1);
-  }, [value, suggestions]);
+  }, [value, suggestions, apiEndpoint, fetchFromApi]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

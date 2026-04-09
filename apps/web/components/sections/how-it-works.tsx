@@ -9,7 +9,7 @@ const STEPS = [
     icon: MapPin,
     title: "Search",
     description:
-      'Enter a business category and location. "Plumbers in Austin" or "Dentists in Buford, GA." We scrape Google Maps for every matching business.',
+      'Enter a business category and location. "Plumbers in Austin" or "Dentists in Austin, TX." We scrape Google Maps for every matching business.',
   },
   {
     number: "02",

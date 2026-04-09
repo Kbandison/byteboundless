@@ -96,7 +96,7 @@ export default function GuidePage() {
 
         <Section id="searching" icon={Search} title="Running a Search">
           <p><strong>Business type:</strong> What kind of business are you looking for? Examples: &quot;dentist&quot;, &quot;lawn care&quot;, &quot;plumber&quot;, &quot;restaurant&quot;. The more specific, the better.</p>
-          <p><strong>Location:</strong> City and state. Examples: &quot;Buford, GA&quot;, &quot;Austin, TX&quot;. Results are pulled from Google Maps for that area.</p>
+          <p><strong>Location:</strong> City and state. Examples: &quot;Austin, TX&quot;, &quot;Austin, TX&quot;. Results are pulled from Google Maps for that area.</p>
           <p><strong>Options:</strong></p>
           <ul className="list-disc pl-5 space-y-1">
             <li><strong>Strict mode</strong> — Only returns businesses with a physical address in the target city. Filters out businesses that show up in Maps but are actually in neighboring cities.</li>
@@ -192,7 +192,7 @@ export default function GuidePage() {
           <div className="space-y-4">
             <div className="p-4 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)]">
               <p className="font-semibold text-[var(--color-text-primary)] mb-1">Start specific, not broad</p>
-              <p>&quot;Dentists in Buford, GA&quot; beats &quot;businesses in Georgia&quot;. Smaller searches give you higher-quality, more relevant leads.</p>
+              <p>&quot;Dentists in Austin, TX&quot; beats &quot;businesses in Georgia&quot;. Smaller searches give you higher-quality, more relevant leads.</p>
             </div>
             <div className="p-4 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)]">
               <p className="font-semibold text-[var(--color-text-primary)] mb-1">Prioritize scores 80+</p>

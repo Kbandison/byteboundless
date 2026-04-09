@@ -19,7 +19,7 @@ export default async function DashboardPage() {
     .select("location")
     .eq("id", user!.id)
     .single();
-  const userLocation = (profileRaw as { location: string | null } | null)?.location || "your area";
+  const userLocation = (profileRaw as { location: string | null } | null)?.location || "Austin, TX";
 
   // Fetch recent searches
   const { data } = await supabase
@@ -233,11 +233,11 @@ export default async function DashboardPage() {
               websites.
             </p>
             <Link
-              href="/search/new?query=lawn+care&location=Buford,+GA"
+              href={`/search/new?query=lawn+care&location=${encodeURIComponent(userLocation)}`}
               className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
             >
               <Search className="w-4 h-4" />
-              Try: lawn care in Buford, GA
+              Try: lawn care in {userLocation}
             </Link>
             <Link
               href="/search/new"

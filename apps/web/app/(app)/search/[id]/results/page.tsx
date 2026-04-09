@@ -14,6 +14,7 @@ import {
   Download,
   Filter,
   Loader2,
+  Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TECH_STACK_COLORS, getScoreColor } from "@/lib/constants";
@@ -24,10 +25,12 @@ interface BusinessRow {
   name: string;
   category: string | null;
   website: string | null;
+  phone: string | null;
   score: number;
   tech: string;
   techLabel: string;
   emails: number;
+  emailList: string[];
   socials: number;
   rating: number;
   reviews: number;
@@ -38,7 +41,9 @@ function parseBusiness(raw: Record<string, unknown>): BusinessRow {
   const enrichment = raw.enrichment as Record<string, unknown> | null;
   const techStack = (enrichment?.techStack as string[]) ?? [];
   const primaryTech = techStack[0]?.toLowerCase().replace("godaddybuilder", "godaddy").replace("nextjs", "nextjs") ?? "unknown";
-  const emails = (enrichment?.emails as string[]) ?? [];
+  const bizEmails = (enrichment?.emails as string[]) ?? [];
+  const devEmails = (enrichment?.developerContacts as string[]) ?? [];
+  const allEmails = [...bizEmails, ...devEmails];
   const socials = enrichment?.socials as Record<string, string> | null;
 
   return {
@@ -46,10 +51,12 @@ function parseBusiness(raw: Record<string, unknown>): BusinessRow {
     name: raw.name as string,
     category: raw.category as string | null,
     website: raw.website as string | null,
+    phone: raw.phone as string | null,
     score: raw.lead_score as number,
     tech: primaryTech,
     techLabel: techStack[0] ?? "Unknown",
-    emails: emails.length + ((enrichment?.developerContacts as string[]) ?? []).length,
+    emails: allEmails.length,
+    emailList: allEmails,
     socials: Object.keys(socials ?? {}).length,
     rating: raw.rating as number ?? 0,
     reviews: raw.reviews as number ?? 0,
@@ -57,7 +64,7 @@ function parseBusiness(raw: Record<string, unknown>): BusinessRow {
   };
 }
 
-type SortKey = "score" | "name" | "rating" | "reviews" | "emails" | "socials";
+type SortKey = "score" | "name" | "rating" | "reviews" | "emails" | "socials" | "phone";
 type SortDir = "asc" | "desc";
 
 function ScoreBadge({ score }: { score: number }) {
@@ -252,9 +259,9 @@ export default function ResultsPage({
           </button>
           <button
             onClick={() => {
-              const headers = ["Score", "Name", "Category", "Website", "Tech", "Emails", "Socials", "Rating", "Reviews", "Address"];
+              const headers = ["Score", "Name", "Category", "Website", "Phone", "Emails", "Tech", "Socials", "Rating", "Reviews", "Address"];
               const rows = sorted.map((b) =>
-                [b.score, b.name, b.category ?? "", b.website ?? "", b.techLabel, b.emails, b.socials, b.rating, b.reviews, b.address ?? ""]
+                [b.score, b.name, b.category ?? "", b.website ?? "", b.phone ?? "", b.emailList.join("; "), b.techLabel, b.socials, b.rating, b.reviews, b.address ?? ""]
                   .map((v) => { const s = String(v).replace(/"/g, '""'); return /[",\n]/.test(s) ? `"${s}"` : s; })
                   .join(",")
               );
@@ -317,11 +324,12 @@ export default function ResultsPage({
       {/* Table */}
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] overflow-hidden">
         {/* Column headers */}
-        <div className="hidden md:grid grid-cols-[56px_1fr_90px_80px_60px_60px_72px_40px] gap-3 px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]/30">
+        <div className="hidden md:grid grid-cols-[56px_1fr_90px_72px_60px_60px_60px_72px_40px] gap-3 px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]/30">
           <SortButton label="Score" sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
           <SortButton label="Business" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
           <span className="text-[11px] uppercase tracking-wider text-[var(--color-text-dim)] font-medium">Tech</span>
           <SortButton label="Rating" sortKey="rating" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+          <span className="text-[11px] uppercase tracking-wider text-[var(--color-text-dim)] font-medium">Phone</span>
           <SortButton label="Email" sortKey="emails" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
           <SortButton label="Social" sortKey="socials" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
           <SortButton label="Reviews" sortKey="reviews" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
@@ -334,7 +342,7 @@ export default function ResultsPage({
             <Link
               key={biz.id}
               href={`/search/${id}/results/${biz.id}`}
-              className="grid grid-cols-[56px_1fr_90px_80px_60px_60px_72px_40px] gap-3 px-5 py-4 items-center hover:bg-[var(--color-bg-secondary)]/30 transition-colors duration-200 cursor-pointer group"
+              className="grid grid-cols-[56px_1fr_90px_72px_60px_60px_60px_72px_40px] gap-3 px-5 py-4 items-center hover:bg-[var(--color-bg-secondary)]/30 transition-colors duration-200 cursor-pointer group"
             >
               <div><ScoreBadge score={biz.score} /></div>
               <div className="min-w-0">
@@ -345,6 +353,9 @@ export default function ResultsPage({
               <div className="flex items-center gap-1">
                 <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                 <span className="text-sm text-[var(--color-text-secondary)]">{biz.rating}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {biz.phone ? <Phone className="w-3.5 h-3.5 text-emerald-500" /> : <Phone className="w-3.5 h-3.5 text-[var(--color-text-dim)] opacity-30" />}
               </div>
               <div className="flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-[var(--color-text-dim)]" />
@@ -383,6 +394,7 @@ export default function ResultsPage({
                   <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
                   {biz.rating}
                 </span>
+                {biz.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-emerald-500" /> Yes</span>}
                 <span className="flex items-center gap-1">
                   <Mail className="w-3 h-3 text-[var(--color-text-dim)]" />
                   {biz.emails}

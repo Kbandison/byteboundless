@@ -128,15 +128,15 @@ export default function SavedListsPage() {
               key={list.id}
               className="flex items-center justify-between p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-border-hover)] transition-all duration-300"
             >
-              <div>
-                <h3 className="text-sm font-semibold">{list.name}</h3>
+              <Link href={`/lists/${list.id}`} className="flex-1">
+                <h3 className="text-sm font-semibold hover:text-[var(--color-accent)] transition-colors">{list.name}</h3>
                 <p className="text-xs text-[var(--color-text-dim)] mt-1">
                   {list.itemCount} lead{list.itemCount !== 1 ? "s" : ""} &middot;
                   Updated {new Date(list.updated_at).toLocaleDateString()}
                 </p>
-              </div>
+              </Link>
               <button
-                onClick={() => handleDelete(list.id)}
+                onClick={(e) => { e.preventDefault(); handleDelete(list.id); }}
                 className="p-2 text-[var(--color-text-dim)] hover:text-red-500 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
@@ -153,15 +153,15 @@ export default function SavedListsPage() {
             No saved lists yet
           </h3>
           <p className="text-sm text-[var(--color-text-secondary)] mb-6 max-w-sm mx-auto">
-            Save leads from search results to organize your outreach. Create
-            lists by industry, location, or priority.
+            Create lists to organize your leads by industry, location, or priority.
           </p>
-          <Link
-            href="/search/new"
+          <button
+            onClick={() => setShowCreate(true)}
             className="inline-flex items-center gap-2 bg-[var(--color-accent)] text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-[var(--color-accent-hover)] transition-all duration-300"
           >
-            Run a search first
-          </Link>
+            <Plus className="w-4 h-4" />
+            New List
+          </button>
         </div>
       )}
     </div>

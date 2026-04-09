@@ -3,6 +3,8 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Search, MapPin, Globe, SlidersHorizontal, Loader2 } from "lucide-react";
+import { AutocompleteInput } from "@/components/ui/autocomplete-input";
+import { BUSINESS_CATEGORIES, US_CITIES } from "@/lib/autocomplete-data";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------
@@ -134,13 +136,13 @@ function NewSearchForm() {
           <Search className="h-4 w-4 text-[var(--color-text-secondary)]" />
           What kind of business?
         </label>
-        <input
+        <AutocompleteInput
           id="query"
-          type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
+          suggestions={BUSINESS_CATEGORIES}
           placeholder="lawn care, dentist, plumber..."
-          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3.5 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-dim)] transition-colors focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none"
+          icon={<Search className="h-4 w-4" />}
         />
       </div>
 
@@ -153,13 +155,13 @@ function NewSearchForm() {
           <MapPin className="h-4 w-4 text-[var(--color-text-secondary)]" />
           Where?
         </label>
-        <input
+        <AutocompleteInput
           id="location"
-          type="text"
           value={location}
-          onChange={(e) => setLocation(e.target.value)}
+          onChange={setLocation}
+          suggestions={US_CITIES}
           placeholder="Buford, GA"
-          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3.5 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-dim)] transition-colors focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none"
+          icon={<MapPin className="h-4 w-4" />}
         />
       </div>
 

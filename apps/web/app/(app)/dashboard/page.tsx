@@ -16,12 +16,16 @@ export default async function DashboardPage() {
   // Fetch recent searches
   const { data } = await supabase
     .from("scrape_jobs")
-    .select("id, query, location, status, created_at")
+    .select("id, query, location, status, options, phase, progress_current, progress_total, created_at, completed_at")
     .eq("user_id", user!.id)
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(10);
 
-  const recentJobs = (data ?? []) as Pick<ScrapeJob, "id" | "query" | "location" | "status" | "created_at">[];
+  const recentJobs = (data ?? []) as (Pick<ScrapeJob, "id" | "query" | "location" | "status" | "created_at"> & {
+    options: { strict: boolean; maxResults: number; enrich: boolean };
+    progress_total: number;
+    completed_at: string | null;
+  })[];
 
   const { count: totalSearches } = await supabase
     .from("scrape_jobs")
@@ -120,15 +124,14 @@ export default async function DashboardPage() {
                 }
                 className="flex items-center justify-between px-6 py-4 hover:bg-[var(--color-bg-secondary)]/30 transition-colors group"
               >
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium group-hover:text-[var(--color-accent)] transition-colors">
                     {job.query} in {job.location}
                   </p>
-                  <p className="text-xs text-[var(--color-text-dim)] mt-0.5">
-                    {new Date(job.created_at).toLocaleDateString()} &middot;{" "}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                     <span
                       className={cn(
-                        "font-medium",
+                        "text-xs font-medium",
                         job.status === "completed"
                           ? "text-emerald-600"
                           : job.status === "running"
@@ -140,7 +143,24 @@ export default async function DashboardPage() {
                     >
                       {job.status}
                     </span>
-                  </p>
+                    {job.status === "completed" && job.progress_total > 0 && (
+                      <span className="text-xs text-[var(--color-text-dim)] font-[family-name:var(--font-mono)]">
+                        {job.progress_total} results
+                      </span>
+                    )}
+                    <span className="text-xs text-[var(--color-text-dim)]">
+                      max {job.options.maxResults}
+                    </span>
+                    {job.options.strict && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-medium">strict</span>
+                    )}
+                    {job.options.enrich && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">enriched</span>
+                    )}
+                    <span className="text-xs text-[var(--color-text-dim)]">
+                      {new Date(job.created_at).toLocaleDateString()} {new Date(job.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
                 </div>
                 <ArrowRight className="w-4 h-4 text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity" />
               </Link>

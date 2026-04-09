@@ -79,6 +79,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [showListDropdown, setShowListDropdown] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [contacted, setContacted] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [creatingList, setCreatingList] = useState(false);
 
   // Fetch business data
   useEffect(() => {
@@ -87,6 +89,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       const { data } = await supabase.from("businesses").select("*").eq("id", businessId).single();
       if (data) setLead(parseLead(data as Record<string, unknown>));
       setLoading(false);
+
+      // Check contacted state
+      const res = await fetch(`/api/contacted?businessId=${businessId}`);
+      const { contacted: c } = await res.json();
+      if (c) setContacted(true);
     }
     fetch_data();
   }, [businessId]);
@@ -287,7 +294,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               </button>
               {showListDropdown && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg shadow-lg z-10 overflow-hidden">
-                  {lists.length > 0 ? lists.map((list) => (
+                  {lists.map((list) => (
                     <button
                       key={list.id}
                       onClick={async () => {
@@ -305,17 +312,88 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                     >
                       {list.name}
                     </button>
-                  )) : (
-                    <div className="px-4 py-3 text-sm text-[var(--color-text-dim)]">
-                      No lists yet.{" "}
-                      <a href="/lists" className="text-[var(--color-accent)] hover:underline">Create one</a>
+                  ))}
+                  <div className="border-t border-[var(--color-border)] px-3 py-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newListName}
+                        onChange={(e) => setNewListName(e.target.value)}
+                        placeholder="New list name..."
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newListName.trim()) {
+                            e.preventDefault();
+                            (async () => {
+                              setCreatingList(true);
+                              const res = await fetch("/api/lists", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ name: newListName.trim() }),
+                              });
+                              const data = await res.json();
+                              if (data.list) {
+                                const newList = data.list as { id: string; name: string };
+                                setLists((prev) => [...prev, newList]);
+                                // Auto-save to the new list
+                                await fetch("/api/lists/items", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ listId: newList.id, businessId }),
+                                });
+                                setSaveMsg(`Created "${newList.name}" and saved`);
+                                setShowListDropdown(false);
+                                setNewListName("");
+                                setTimeout(() => setSaveMsg(null), 3000);
+                              }
+                              setCreatingList(false);
+                            })();
+                          }
+                        }}
+                        className="flex-1 px-2.5 py-1.5 text-xs bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                      />
+                      <button
+                        disabled={creatingList || !newListName.trim()}
+                        onClick={async () => {
+                          setCreatingList(true);
+                          const res = await fetch("/api/lists", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ name: newListName.trim() }),
+                          });
+                          const data = await res.json();
+                          if (data.list) {
+                            const newList = data.list as { id: string; name: string };
+                            setLists((prev) => [...prev, newList]);
+                            await fetch("/api/lists/items", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ listId: newList.id, businessId }),
+                            });
+                            setSaveMsg(`Created "${newList.name}" and saved`);
+                            setShowListDropdown(false);
+                            setNewListName("");
+                            setTimeout(() => setSaveMsg(null), 3000);
+                          }
+                          setCreatingList(false);
+                        }}
+                        className="px-2.5 py-1.5 text-xs bg-[var(--color-accent)] text-white rounded disabled:opacity-50"
+                      >
+                        +
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
             </div>
             <button
-              onClick={() => setContacted(true)}
+              onClick={async () => {
+                await fetch("/api/contacted", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ businessId }),
+                });
+                setContacted(true);
+              }}
               disabled={contacted}
               className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border text-sm font-medium transition-all duration-300 ${
                 contacted

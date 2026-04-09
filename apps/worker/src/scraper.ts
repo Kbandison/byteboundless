@@ -6,9 +6,9 @@ import { chromium, type Page } from "playwright";
 // ──────────────────────────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────────────────────────
-const ENRICH_CONCURRENCY = 8;
-const FETCH_TIMEOUT_MS = 12000;
-const MAX_PAGES_PER_SITE = 4;
+const ENRICH_CONCURRENCY = 12;
+const FETCH_TIMEOUT_MS = 10000;
+const MAX_PAGES_PER_SITE = 3;
 
 export interface ScrapeOptions {
   query: string;
@@ -359,7 +359,7 @@ async function collectListingUrls(opts: ScrapeOptions): Promise<{ url: string; n
     });
     if (h === prev) { stable++; if (stable >= 2) break; } else stable = 0;
     prev = h;
-    await randomDelay(1200, 2000);
+    await randomDelay(800, 1400);
   }
 
   const urls = await page.$$eval('div[role="feed"] a.hfpxzc', (els) =>
@@ -476,7 +476,7 @@ async function scrapeDetailsParallel(
       onProgress("extracting", idx + 1, listings.length);
 
       // Small delay between listings to avoid rate limiting
-      await sleep(500);
+      await sleep(300);
     }
     await context.close();
   });

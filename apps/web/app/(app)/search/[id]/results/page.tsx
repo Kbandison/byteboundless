@@ -486,7 +486,13 @@ export default function ResultsPage({
                 </div>
                 <p className="text-xs text-[var(--color-text-dim)] truncate">{biz.category} &middot; {biz.address}</p>
               </div>
-              <div><TechChip tech={biz.tech} label={biz.techLabel} /></div>
+              <div>
+                {biz.website ? (
+                  <TechChip tech={biz.tech} label={biz.techLabel} />
+                ) : (
+                  <span className="text-[11px] px-2 py-0.5 rounded font-medium bg-red-500/15 text-red-600">No site</span>
+                )}
+              </div>
               <div className="flex items-center gap-1">
                 <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                 <span className="text-sm text-[var(--color-text-secondary)]">{biz.rating}</span>
@@ -528,7 +534,11 @@ export default function ResultsPage({
                   </div>
                   <p className="text-xs text-[var(--color-text-dim)] truncate">{biz.category}</p>
                 </div>
-                <TechChip tech={biz.tech} label={biz.techLabel} />
+                {biz.website ? (
+                  <TechChip tech={biz.tech} label={biz.techLabel} />
+                ) : (
+                  <span className="text-[11px] px-2 py-0.5 rounded font-medium bg-red-500/15 text-red-600 shrink-0">No site</span>
+                )}
               </div>
               <div className="flex items-center gap-4 ml-[52px] text-xs text-[var(--color-text-secondary)]">
                 <span className="flex items-center gap-1">

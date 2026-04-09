@@ -632,6 +632,8 @@ export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallbac
 
   // Phase 3.5: Lighthouse (sequential, 1 at a time to avoid rate limits)
   if (opts.enrich) {
+    const reachableCount = enriched.filter((b) => (b.enrichment as Record<string, unknown> | undefined)?.reachable).length;
+    console.log(`[Scraper] Running Lighthouse audits for ${reachableCount} reachable sites...`);
     for (let i = 0; i < enriched.length; i++) {
       const b = enriched[i];
       const e = b.enrichment as Record<string, unknown> | undefined;

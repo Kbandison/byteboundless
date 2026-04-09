@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/playwright:v1.52.0-noble
 
 # Cache bust - forces fresh build
-ARG CACHEBUST=1
+ARG CACHEBUST=2
 
 WORKDIR /app
 

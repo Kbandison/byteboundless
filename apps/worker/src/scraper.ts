@@ -575,7 +575,7 @@ export async function runUrlEnrich(urls: string[], onProgress: ProgressCallback)
     const url = (e?.finalUrl as string) || b.website;
     if (!url || !e?.reachable) continue;
     try {
-      const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile`;
+      const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile`;
       const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(20000) });
       if (psiRes.ok) {
         const psi = await psiRes.json();
@@ -641,7 +641,7 @@ export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallbac
       if (!url || !e?.reachable) continue;
 
       try {
-        const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile`;
+        const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile`;
         const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(20000) });
         if (psiRes.ok) {
           const psi = await psiRes.json();
@@ -666,8 +666,8 @@ export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallbac
       }
 
       onProgress("scoring", i + 1, enriched.length);
-      // 1.5s delay between API calls to respect rate limits
-      await sleep(1500);
+      // 2s delay between API calls to respect rate limits
+      await sleep(2000);
     }
   }
 

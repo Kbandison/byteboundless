@@ -59,24 +59,29 @@ export async function POST(request: Request) {
     );
   }
 
+  const hasWebsite = business.website && business.website !== "None";
+  const enrichmentStr = business.enrichment
+    ? JSON.stringify(business.enrichment)
+    : "No enrichment data (business has no website)";
+
   const prompt = `You are a freelance web development sales consultant. Analyze this business and generate outreach materials.
 
 Business: ${business.name}
 Category: ${business.category || "Unknown"}
-Website: ${business.website || "None"}
+Website: ${hasWebsite ? business.website : "NO WEBSITE — this business has no web presence at all"}
 Rating: ${business.rating || "N/A"} (${business.reviews || 0} reviews)
 Address: ${business.address || "Unknown"}
 Unclaimed listing: ${business.unclaimed ? "Yes" : "No"}
 Lead Score: ${business.lead_score}/100
 Score Reasons: ${JSON.stringify(business.lead_reasons)}
-Enrichment Data: ${JSON.stringify(business.enrichment)}
+Enrichment Data: ${enrichmentStr}
 
-Generate a JSON response with:
-1. "pitchAngle": One paragraph explaining why this business needs a new website, using specific data points.
-2. "improvementSuggestions": Array of exactly 3 specific, actionable improvement suggestions tied to the enrichment data.
-3. "draftEmail": A personalized cold outreach email (under 150 words) that references specific findings about their current website.
+${hasWebsite
+    ? "Generate outreach materials explaining why they need a BETTER website based on the enrichment data."
+    : "Generate outreach materials explaining why they NEED a website. They have zero web presence — this is a huge opportunity."}
 
-Respond ONLY with valid JSON, no markdown.`;
+Return ONLY a raw JSON object (no markdown, no code fences, no explanation) with these exact keys:
+{"pitchAngle": "one paragraph", "improvementSuggestions": ["suggestion 1", "suggestion 2", "suggestion 3"], "draftEmail": "email text"}`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -101,16 +106,32 @@ Respond ONLY with valid JSON, no markdown.`;
   }
 
   const aiResponse = await response.json();
-  const content = aiResponse.content?.[0]?.text;
+  let content = aiResponse.content?.[0]?.text ?? "";
+
+  // Strip markdown code fences if Claude wraps the response
+  content = content.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
 
   let pitchData;
   try {
     pitchData = JSON.parse(content);
   } catch {
-    return NextResponse.json(
-      { error: "Failed to parse AI response" },
-      { status: 502 }
-    );
+    // Try to extract JSON from the response if it has surrounding text
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        pitchData = JSON.parse(jsonMatch[0]);
+      } catch {
+        return NextResponse.json(
+          { error: "Failed to parse AI response" },
+          { status: 502 }
+        );
+      }
+    } else {
+      return NextResponse.json(
+        { error: "Failed to parse AI response" },
+        { status: 502 }
+      );
+    }
   }
 
   // Cache the pitch (type assertions needed until `supabase gen types` is run)

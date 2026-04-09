@@ -48,7 +48,11 @@ function Toggle({
 /* ------------------------------------------------------------------
    Max Results Options
    ------------------------------------------------------------------ */
-const MAX_RESULTS_OPTIONS = [25, 50, 100, 200] as const;
+const PLAN_LIMITS: Record<string, { options: number[]; max: number }> = {
+  free: { options: [25, 50], max: 50 },
+  pro: { options: [25, 50, 100, 200], max: 200 },
+  agency: { options: [25, 50, 100, 200, 500], max: 500 },
+};
 
 /* ------------------------------------------------------------------
    Search Form (inner component that uses useSearchParams)
@@ -61,8 +65,28 @@ function NewSearchForm() {
   const [location, setLocation] = useState("");
   const [radius, setRadius] = useState<string>("city");
   const [pastedUrls, setPastedUrls] = useState("");
+  const [plan, setPlan] = useState<string>("free");
   const [maxResults, setMaxResults] = useState<number>(50);
   const [enrich, setEnrich] = useState(true);
+
+  // Fetch user plan to determine max results options
+  useEffect(() => {
+    async function fetchPlan() {
+      const supabase = (await import("@/lib/supabase/client")).createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
+      if (data) {
+        const p = (data as { plan: string }).plan;
+        setPlan(p);
+        // Set default max to the plan's highest option
+        const limits = PLAN_LIMITS[p] || PLAN_LIMITS.free;
+        setMaxResults(Math.min(maxResults, limits.max));
+      }
+    }
+    fetchPlan();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* Hydrate form from URL search params on mount */
   useEffect(() => {
@@ -79,7 +103,7 @@ function NewSearchForm() {
     if (max) {
       const parsed = Number(max);
       if (
-        (MAX_RESULTS_OPTIONS as readonly number[]).includes(parsed)
+        (PLAN_LIMITS[plan]?.options ?? PLAN_LIMITS.free.options).includes(parsed)
       ) {
         setMaxResults(parsed);
       }
@@ -281,7 +305,7 @@ function NewSearchForm() {
             onChange={(e) => setMaxResults(Number(e.target.value))}
             className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm text-[var(--color-text-primary)] transition-colors focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none cursor-pointer"
           >
-            {MAX_RESULTS_OPTIONS.map((opt) => (
+            {(PLAN_LIMITS[plan]?.options ?? PLAN_LIMITS.free.options).map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
               </option>

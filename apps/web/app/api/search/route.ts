@@ -42,14 +42,22 @@ export async function POST(request: Request) {
     );
   }
 
-  // Create the scrape job (type assertions needed until `supabase gen types` is run)
+  // Enforce plan-based max results limit
+  const planMaxResults: Record<string, number> = { free: 50, pro: 200, agency: 500 };
+  const maxAllowed = planMaxResults[profile?.plan ?? "free"] ?? 50;
+  const clampedOptions = {
+    ...(options ?? { radius: "nearby", maxResults: 50, enrich: true }),
+    maxResults: Math.min(options?.maxResults ?? 50, maxAllowed),
+  };
+
+  // Create the scrape job
   const { data: jobRaw, error } = await supabase
     .from("scrape_jobs")
     .insert({
       user_id: user.id,
       query,
       location,
-      options: options ?? { radius: "nearby", maxResults: 50, enrich: true },
+      options: clampedOptions,
     } as never)
     .select("*")
     .single();

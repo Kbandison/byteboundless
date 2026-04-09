@@ -328,7 +328,17 @@ function computeLeadScore(business: RawBusiness): { score: number; reasons: stri
 // Phase 1: Collect listing URLs
 // ──────────────────────────────────────────────────────────────────
 async function collectListingUrls(opts: ScrapeOptions): Promise<{ url: string; name: string | null }[]> {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--single-process",
+      "--no-zygote",
+    ],
+  });
   const context = await browser.newContext({
     userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     viewport: { width: 1400, height: 900 },
@@ -403,7 +413,17 @@ async function scrapeDetailsParallel(
   opts: ScrapeOptions,
   onProgress: ProgressCallback
 ): Promise<RawBusiness[]> {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--single-process",
+      "--no-zygote",
+    ],
+  });
   const businesses: RawBusiness[] = [];
   const seenIds = new Set<string>();
   const contexts = opts.contexts ?? 3;

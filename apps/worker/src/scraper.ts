@@ -554,6 +554,52 @@ async function scrapeDetailsParallel(
 }
 
 // ──────────────────────────────────────────────────────────────────
+// Reverse mode: enrich a list of URLs directly (skip Google Maps)
+// ──────────────────────────────────────────────────────────────────
+export async function runUrlEnrich(urls: string[], onProgress: ProgressCallback): Promise<RawBusiness[]> {
+  // Build minimal business records from URLs
+  const businesses: RawBusiness[] = urls.map((url) => {
+    // Extract a readable name from the URL
+    let name: string;
+    try {
+      const hostname = new URL(url.startsWith("http") ? url : `https://${url}`).hostname;
+      name = hostname.replace(/^www\./, "").split(".")[0].replace(/-/g, " ");
+      name = name.charAt(0).toUpperCase() + name.slice(1);
+    } catch {
+      name = url;
+    }
+    return {
+      name,
+      website: url.startsWith("http") ? url : `https://${url}`,
+      phone: null, address: null, hours: null, rating: null,
+      reviews: null, category: null, unclaimed: false,
+      mapsUrl: "",
+    };
+  });
+
+  // Phase: Enrich
+  onProgress("enriching", 0, businesses.length);
+  const enriched = await concurrentMap(
+    businesses,
+    async (b) => enrichWebsite(b),
+    ENRICH_CONCURRENCY,
+    (done, total) => onProgress("enriching", done, total)
+  );
+
+  // Phase: Score
+  onProgress("scoring", 0, enriched.length);
+  const scored = enriched.map((b, i) => {
+    const { score, reasons } = computeLeadScore(b);
+    onProgress("scoring", i + 1, enriched.length);
+    return { ...b, leadScore: score, leadReasons: reasons };
+  });
+
+  scored.sort((a, b) => (b.leadScore || 0) - (a.leadScore || 0));
+  onProgress("done", scored.length, scored.length);
+  return scored;
+}
+
+// ──────────────────────────────────────────────────────────────────
 // Main scrape pipeline — called by the polling loop
 // ──────────────────────────────────────────────────────────────────
 export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallback): Promise<RawBusiness[]> {

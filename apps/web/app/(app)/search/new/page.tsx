@@ -362,16 +362,46 @@ function FormSkeleton() {
 /* ------------------------------------------------------------------
    Page export (wraps form in Suspense for useSearchParams)
    ------------------------------------------------------------------ */
+const QUICK_PLAYS = [
+  { emoji: "🦷", label: "Dentists", query: "dentist" },
+  { emoji: "🌿", label: "Landscapers", query: "landscaping" },
+  { emoji: "🔧", label: "Plumbers", query: "plumber" },
+  { emoji: "🍽️", label: "Restaurants", query: "restaurant" },
+  { emoji: "⚖️", label: "Law Firms", query: "law firm" },
+  { emoji: "🏠", label: "Real Estate", query: "real estate agent" },
+  { emoji: "💇", label: "Salons", query: "hair salon" },
+  { emoji: "🚗", label: "Auto Repair", query: "auto repair" },
+  { emoji: "🐾", label: "Pet Groomers", query: "pet grooming" },
+  { emoji: "🏋️", label: "Gyms", query: "gym" },
+];
+
 export default function NewSearchPage() {
   return (
     <div className="min-h-screen flex flex-col items-center px-6 pt-16 pb-20 bg-[var(--color-bg-primary)]">
-      <div className="w-full max-w-xl space-y-2 mb-8">
+      <div className="w-full max-w-xl space-y-2 mb-6">
         <h1 className="text-2xl font-bold tracking-tight text-[var(--color-text-primary)] font-[family-name:var(--font-display)]">
           New Search
         </h1>
         <p className="text-sm text-[var(--color-text-secondary)]">
           Find businesses that need a better website.
         </p>
+      </div>
+
+      {/* Quick Plays */}
+      <div className="w-full max-w-xl mb-6">
+        <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-2">Quick picks</p>
+        <div className="flex flex-wrap gap-2">
+          {QUICK_PLAYS.map((play) => (
+            <a
+              key={play.query}
+              href={`?query=${encodeURIComponent(play.query)}`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-xs font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/30 hover:text-[var(--color-accent)] transition-all duration-200"
+            >
+              <span>{play.emoji}</span>
+              {play.label}
+            </a>
+          ))}
+        </div>
       </div>
 
       <Suspense fallback={<FormSkeleton />}>

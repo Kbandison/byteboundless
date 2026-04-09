@@ -1,7 +1,7 @@
 // ByteBoundless Worker — polls Supabase for pending scrape jobs and runs them
 
 import { createClient } from "@supabase/supabase-js";
-import { runScrape, type RawBusiness } from "./scraper.js";
+import { runScrape, runUrlEnrich, type RawBusiness } from "./scraper.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -129,38 +129,51 @@ async function failJob(jobId: string, error: string) {
     .eq("id", jobId);
 }
 
+const progressCallback = (jobId: string) => async (phase: string, current: number, total: number) => {
+  if (phase === "enriching" && current === 0) {
+    console.log(`[Worker] Phase: enriching (${total} businesses)`);
+    await forceFlush(jobId, phase, current, total);
+  } else if (phase === "scoring" && current === 0) {
+    console.log(`[Worker] Phase: scoring (${total} businesses)`);
+    await forceFlush(jobId, phase, current, total);
+  } else if (phase === "collecting" || phase === "done") {
+    await forceFlush(jobId, phase, current, total);
+  } else {
+    updateProgress(jobId, phase, current, total);
+  }
+};
+
 async function processJob(job: Record<string, unknown>) {
   const jobId = job.id as string;
-  const options = job.options as { radius?: string; strict?: boolean; maxResults: number; enrich: boolean };
-  // Support both old (strict) and new (radius) option formats
-  const radius = (options.radius || (options.strict ? "city" : "nearby")) as "city" | "nearby" | "region" | "statewide";
+  const options = job.options as { radius?: string; strict?: boolean; maxResults: number; enrich: boolean; mode?: string; urls?: string[] };
+  const isUrlMode = options.mode === "urls" && Array.isArray(options.urls) && options.urls.length > 0;
 
-  console.log(`[Worker] Processing job ${jobId}: "${job.query}" in "${job.location}" (radius: ${radius})`);
+  if (isUrlMode) {
+    console.log(`[Worker] Processing URL import job ${jobId}: ${options.urls!.length} URLs`);
+  } else {
+    const radius = (options.radius || (options.strict ? "city" : "nearby")) as "city" | "nearby" | "region" | "statewide";
+    console.log(`[Worker] Processing job ${jobId}: "${job.query}" in "${job.location}" (radius: ${radius})`);
+  }
 
   try {
-    const results = await runScrape(
-      {
-        query: job.query as string,
-        location: job.location as string,
-        radius,
-        maxResults: options.maxResults,
-        enrich: options.enrich,
-      },
-      async (phase, current, total) => {
-        // Force flush on phase transitions
-        if (phase === "enriching" && current === 0) {
-          console.log(`[Worker] Phase: enriching (${total} businesses)`);
-          await forceFlush(jobId, phase, current, total);
-        } else if (phase === "scoring" && current === 0) {
-          console.log(`[Worker] Phase: scoring (${total} businesses)`);
-          await forceFlush(jobId, phase, current, total);
-        } else if (phase === "collecting" || phase === "done") {
-          await forceFlush(jobId, phase, current, total);
-        } else {
-          updateProgress(jobId, phase, current, total);
-        }
-      }
-    );
+    let results: RawBusiness[];
+
+    if (isUrlMode) {
+      // Reverse mode: skip Google Maps, go straight to enrichment
+      results = await runUrlEnrich(options.urls!, progressCallback(jobId));
+    } else {
+      const radius = (options.radius || (options.strict ? "city" : "nearby")) as "city" | "nearby" | "region" | "statewide";
+      results = await runScrape(
+        {
+          query: job.query as string,
+          location: job.location as string,
+          radius,
+          maxResults: options.maxResults,
+          enrich: options.enrich,
+        },
+        progressCallback(jobId)
+      );
+    }
 
     console.log(`[Worker] Writing ${results.length} businesses to DB`);
     await writeBusinessBatch(jobId, results);

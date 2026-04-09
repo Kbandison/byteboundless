@@ -5,6 +5,7 @@ import { HowItWorks } from "@/components/sections/how-it-works";
 import { ResultsPreview } from "@/components/sections/results-preview";
 import { PricingTeaser } from "@/components/sections/pricing-teaser";
 import { FAQ } from "@/components/sections/faq";
+import { Founder } from "@/components/sections/founder";
 import { CTA } from "@/components/sections/cta";
 import { Footer } from "@/components/layout/footer";
 
@@ -18,6 +19,7 @@ export default function Home() {
       <ResultsPreview />
       <PricingTeaser />
       <FAQ />
+      <Founder />
       <CTA />
       <Footer />
     </>

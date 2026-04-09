@@ -79,7 +79,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
   const [showListDropdown, setShowListDropdown] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
-  const [contacted, setContacted] = useState(false);
+  const [outcomeStatus, setOutcomeStatus] = useState<string | null>(null);
+  const [dealAmount, setDealAmount] = useState("");
+  const [showDealInput, setShowDealInput] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [creatingList, setCreatingList] = useState(false);
 
@@ -91,10 +93,10 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       if (data) setLead(parseLead(data as Record<string, unknown>));
       setLoading(false);
 
-      // Check contacted state
+      // Check outcome state
       const res = await fetch(`/api/contacted?businessId=${businessId}`);
-      const { contacted: c } = await res.json();
-      if (c) setContacted(true);
+      const outcome = await res.json();
+      if (outcome.status) setOutcomeStatus(outcome.status);
     }
     fetch_data();
   }, [businessId]);
@@ -156,6 +158,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const socials = (e?.socials as Record<string, string>) ?? {};
   const hasViewport = e?.hasViewport as boolean | null;
   const copyrightYear = e?.copyrightYear as number | null;
+  const lighthouse = e?.lighthouse as { performance: number; seo: number; accessibility: number } | null;
   const pitchAngle = pitch?.pitch_angle ?? pitch?.pitchAngle ?? "";
   const suggestions = pitch?.improvement_suggestions ?? pitch?.improvementSuggestions ?? [];
   const draftEmail = pitch?.draft_email ?? pitch?.draftEmail ?? "";
@@ -238,6 +241,34 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                   <div className="flex items-center gap-2"><Shield className="w-4 h-4 text-[var(--color-text-dim)]" /><span>Reachable</span></div>
                   <span className={e.reachable ? "text-emerald-600" : "text-red-500"}>{e.reachable ? "Yes" : "No"}</span>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Lighthouse Scores */}
+          {lighthouse && (
+            <div className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+              <h3 className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-4 flex items-center gap-2">
+                Lighthouse Scores
+                <HelpTip text="Google's automated audit of the site's performance, SEO, and accessibility. Lower scores = more pitch ammunition for why they need a rebuild." />
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Performance", value: lighthouse.performance },
+                  { label: "SEO", value: lighthouse.seo },
+                  { label: "Accessibility", value: lighthouse.accessibility },
+                ].map((metric) => (
+                  <div key={metric.label} className="text-center p-3 rounded-lg bg-[var(--color-bg-secondary)]">
+                    <p className={cn(
+                      "text-xl font-bold font-[family-name:var(--font-mono)]",
+                      metric.value >= 90 ? "text-emerald-600" :
+                      metric.value >= 50 ? "text-amber-600" : "text-red-500"
+                    )}>
+                      {metric.value}
+                    </p>
+                    <p className="text-[10px] text-[var(--color-text-dim)] mt-0.5">{metric.label}</p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -382,25 +413,89 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
               )}
             </div>
-            <button
-              onClick={async () => {
-                await fetch("/api/contacted", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ businessId }),
-                });
-                setContacted(true);
-              }}
-              disabled={contacted}
-              className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border text-sm font-medium transition-all duration-300 ${
-                contacted
-                  ? "border-emerald-500 text-emerald-600 bg-emerald-50"
-                  : "border-[var(--color-border)] hover:border-emerald-500 hover:text-emerald-600"
-              }`}
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {contacted ? "Contacted" : "Mark Contacted"}
-            </button>
+            {/* Outcome Pipeline */}
+            <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+              <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-3">Outreach Status</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: "contacted", label: "Contacted", color: "blue" },
+                  { key: "replied", label: "Replied", color: "violet" },
+                  { key: "quoted", label: "Quoted", color: "amber" },
+                  { key: "signed", label: "Signed", color: "emerald" },
+                  { key: "lost", label: "Lost", color: "red" },
+                ].map((step) => {
+                  const order = ["contacted", "replied", "quoted", "signed", "lost"];
+                  const currentIdx = outcomeStatus ? order.indexOf(outcomeStatus) : -1;
+                  const stepIdx = order.indexOf(step.key);
+                  const isActive = outcomeStatus === step.key;
+                  const isPast = currentIdx >= 0 && stepIdx < currentIdx && step.key !== "lost";
+                  const colorMap: Record<string, string> = {
+                    blue: isActive ? "border-blue-500 bg-blue-50 text-blue-700" : "",
+                    violet: isActive ? "border-violet-500 bg-violet-50 text-violet-700" : "",
+                    amber: isActive ? "border-amber-500 bg-amber-50 text-amber-700" : "",
+                    emerald: isActive ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "",
+                    red: isActive ? "border-red-500 bg-red-50 text-red-700" : "",
+                  };
+                  return (
+                    <button
+                      key={step.key}
+                      onClick={async () => {
+                        if (step.key === "signed") {
+                          setShowDealInput(true);
+                          setOutcomeStatus("signed");
+                          await fetch("/api/contacted", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ businessId, status: "signed" }),
+                          });
+                          return;
+                        }
+                        setOutcomeStatus(step.key);
+                        setShowDealInput(false);
+                        await fetch("/api/contacted", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ businessId, status: step.key }),
+                        });
+                      }}
+                      className={cn(
+                        "text-xs px-3 py-1.5 rounded-lg border font-medium transition-all duration-200",
+                        isActive ? colorMap[step.color] :
+                        isPast ? "border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-dim)] line-through" :
+                        "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]"
+                      )}
+                    >
+                      {isActive && <CheckCircle2 className="w-3 h-3 inline mr-1" />}
+                      {step.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {showDealInput && outcomeStatus === "signed" && (
+                <div className="flex gap-2 mt-3">
+                  <input
+                    type="number"
+                    value={dealAmount}
+                    onChange={(e) => setDealAmount(e.target.value)}
+                    placeholder="Deal amount ($)"
+                    className="flex-1 px-3 py-2 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                  />
+                  <button
+                    onClick={async () => {
+                      await fetch("/api/contacted", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ businessId, status: "signed", dealAmount: parseFloat(dealAmount) }),
+                      });
+                      setShowDealInput(false);
+                    }}
+                    className="px-3 py-2 text-xs bg-emerald-600 text-white rounded-lg font-medium"
+                  >
+                    Save
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

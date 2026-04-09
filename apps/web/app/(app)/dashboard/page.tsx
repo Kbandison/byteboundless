@@ -13,6 +13,14 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Fetch user profile for personalized plays
+  const { data: profileRaw } = await supabase
+    .from("profiles")
+    .select("location")
+    .eq("id", user!.id)
+    .single();
+  const userLocation = (profileRaw as { location: string | null } | null)?.location || "your area";
+
   // Fetch recent searches
   const { data } = await supabase
     .from("scrape_jobs")
@@ -93,6 +101,47 @@ export default async function DashboardPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* Quick Plays */}
+      <div className="mt-10">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-bold tracking-tight text-[var(--color-text-primary)]">
+            Quick Plays
+          </h2>
+          <span className="text-xs text-[var(--color-text-dim)]">One-click searches tailored to web dev outreach</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {[
+            { emoji: "🦷", title: "Dentists on Wix", desc: "High-conversion niche — most still on old builders", query: "dentist", radius: "nearby" },
+            { emoji: "🌿", title: "Landscapers", desc: "Many have no site or Facebook-only presence", query: "landscaping", radius: "nearby" },
+            { emoji: "🔧", title: "Plumbers", desc: "Essential service, often outdated web presence", query: "plumber", radius: "nearby" },
+            { emoji: "🍽️", title: "Restaurants", desc: "Need online ordering, menus, and mobile sites", query: "restaurant", radius: "city" },
+            { emoji: "⚖️", title: "Law Firms", desc: "High-ticket clients, willing to invest in web", query: "law firm", radius: "nearby" },
+            { emoji: "🏠", title: "Real Estate Agents", desc: "Need IDX integration, modern listings pages", query: "real estate agent", radius: "region" },
+            { emoji: "💇", title: "Hair Salons & Barbers", desc: "Need booking systems and mobile-first design", query: "hair salon", radius: "city" },
+            { emoji: "🚗", title: "Auto Repair Shops", desc: "Often GoDaddy/Wix sites from 2015", query: "auto repair", radius: "nearby" },
+          ].map((play) => (
+            <Link
+              key={play.query}
+              href={`/search/new?query=${encodeURIComponent(play.query)}&location=${encodeURIComponent(userLocation)}&radius=${play.radius}`}
+              className="group p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/30 hover:shadow-sm transition-all duration-300"
+            >
+              <div className="flex items-start gap-3">
+                <span className="text-xl">{play.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold group-hover:text-[var(--color-accent)] transition-colors">
+                    {play.title}
+                  </p>
+                  <p className="text-xs text-[var(--color-text-dim)] mt-0.5">
+                    {play.desc}
+                  </p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Recent Searches */}

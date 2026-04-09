@@ -56,9 +56,11 @@ const MAX_RESULTS_OPTIONS = [25, 50, 100, 200] as const;
 function NewSearchForm() {
   const searchParams = useSearchParams();
 
+  const [mode, setMode] = useState<"search" | "urls">("search");
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [radius, setRadius] = useState<string>("city");
+  const [pastedUrls, setPastedUrls] = useState("");
   const [maxResults, setMaxResults] = useState<number>(50);
   const [enrich, setEnrich] = useState(true);
 
@@ -93,7 +95,8 @@ function NewSearchForm() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!query || !location) return;
+      if (mode === "search" && (!query || !location)) return;
+      if (mode === "urls" && !pastedUrls.trim()) return;
 
       setSubmitting(true);
       setError(null);
@@ -102,11 +105,11 @@ function NewSearchForm() {
         const res = await fetch("/api/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query,
-            location,
-            options: { radius, maxResults, enrich },
-          }),
+          body: JSON.stringify(
+            mode === "search"
+              ? { query, location, options: { radius, maxResults, enrich } }
+              : { query: "URL Import", location: "Custom", options: { radius: "city", maxResults: 500, enrich, mode: "urls", urls: pastedUrls.split("\n").map((u) => u.trim()).filter(Boolean) } }
+          ),
         });
 
         const data = await res.json();
@@ -123,11 +126,62 @@ function NewSearchForm() {
         setSubmitting(false);
       }
     },
-    [query, location, radius, maxResults, enrich, router]
+    [mode, query, location, radius, maxResults, enrich, pastedUrls, router]
   );
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-xl space-y-6">
+      {/* --- Mode Toggle --- */}
+      <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setMode("search")}
+          className={cn(
+            "flex-1 text-sm font-medium py-2.5 transition-colors",
+            mode === "search"
+              ? "bg-[var(--color-accent)] text-white"
+              : "bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]"
+          )}
+        >
+          Google Maps Search
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("urls")}
+          className={cn(
+            "flex-1 text-sm font-medium py-2.5 transition-colors",
+            mode === "urls"
+              ? "bg-[var(--color-accent)] text-white"
+              : "bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]"
+          )}
+        >
+          Paste URLs to Qualify
+        </button>
+      </div>
+
+      {mode === "urls" ? (
+        /* --- URL Paste Mode --- */
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-text-primary)] font-[family-name:var(--font-display)]">
+              <Globe className="h-4 w-4 text-[var(--color-text-secondary)]" />
+              Business Website URLs
+              <HelpTip text="Paste one URL per line. We'll visit each website, detect their tech stack, find emails, run Lighthouse audits, and score them — skipping the Google Maps scrape entirely." />
+            </label>
+            <textarea
+              value={pastedUrls}
+              onChange={(e) => setPastedUrls(e.target.value)}
+              placeholder={"https://example-dental.com\nhttps://joes-plumbing.com\nhttps://greenthumb-landscaping.net"}
+              rows={8}
+              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-4 py-3 text-sm font-[family-name:var(--font-mono)] placeholder:text-[var(--color-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent resize-y"
+            />
+            <p className="text-xs text-[var(--color-text-dim)]">
+              {pastedUrls.split("\n").filter((u) => u.trim()).length} URLs entered
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* --- Query --- */}
       <div className="space-y-1.5">
         <label
@@ -252,6 +306,8 @@ function NewSearchForm() {
           <Toggle id="enrich" checked={enrich} onChange={setEnrich} />
         </div>
       </div>
+        </>
+      )}
 
       {/* --- Error --- */}
       {error && (
@@ -263,7 +319,7 @@ function NewSearchForm() {
       {/* --- Submit --- */}
       <button
         type="submit"
-        disabled={submitting || !query || !location}
+        disabled={submitting || (mode === "search" ? !query || !location : !pastedUrls.trim())}
         className="w-full flex items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:ring-offset-2 focus:ring-offset-[var(--color-bg-primary)] font-[family-name:var(--font-display)]"
       >
         {submitting ? (

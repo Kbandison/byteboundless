@@ -281,6 +281,24 @@ async function enrichWebsite(business: RawBusiness): Promise<RawBusiness> {
     const copyrightYear = yearMatch ? parseInt(yearMatch[1], 10) : null;
     const yearsStale = copyrightYear ? new Date().getFullYear() - copyrightYear : null;
 
+    // Lighthouse scores via PageSpeed Insights API (free, no key needed)
+    let lighthouse: { performance: number; seo: number; accessibility: number } | null = null;
+    try {
+      const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url=${encodeURIComponent(home.finalUrl || business.website!)}&category=performance&category=seo&category=accessibility&strategy=mobile`;
+      const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(15000) });
+      if (psiRes.ok) {
+        const psi = await psiRes.json();
+        const cats = psi.lighthouseResult?.categories;
+        if (cats) {
+          lighthouse = {
+            performance: Math.round((cats.performance?.score ?? 0) * 100),
+            seo: Math.round((cats.seo?.score ?? 0) * 100),
+            accessibility: Math.round((cats.accessibility?.score ?? 0) * 100),
+          };
+        }
+      }
+    } catch { /* Lighthouse is best-effort — don't fail enrichment if it times out */ }
+
     return {
       ...business,
       enrichment: {
@@ -288,7 +306,7 @@ async function enrichWebsite(business: RawBusiness): Promise<RawBusiness> {
         finalUrl: home.finalUrl, loadMs: home.loadMs, sizeKb: home.sizeKb, title,
         emails: businessEmails, developerContacts: devEmails, socials, techStack: tech,
         copyrightYear, yearsStale, hasViewport, hasFavicon, hasOgImage, hasMetaDescription,
-        pagesCrawled: 1 + contactUrls.length,
+        pagesCrawled: 1 + contactUrls.length, lighthouse,
       },
     };
   } catch (err: unknown) {
@@ -332,6 +350,14 @@ function computeLeadScore(business: RawBusiness): { score: number; reasons: stri
   if ((e.loadMs as number) > 5000) { score += 10; reasons.push("slow load"); }
   if ((e.sizeKb as number) > 3000) { score += 5; reasons.push("heavy page"); }
   if (business.unclaimed) { score += 15; reasons.push("unclaimed listing"); }
+
+  // Lighthouse signals
+  const lh = e.lighthouse as { performance: number; seo: number; accessibility: number } | null;
+  if (lh) {
+    if (lh.performance < 50) { score += 10; reasons.push(`poor performance (${lh.performance}/100)`); }
+    if (lh.seo < 70) { score += 5; reasons.push(`weak SEO (${lh.seo}/100)`); }
+    if (lh.accessibility < 60) { score += 5; reasons.push(`accessibility issues (${lh.accessibility}/100)`); }
+  }
 
   return { score: Math.min(100, Math.max(0, score)), reasons };
 }

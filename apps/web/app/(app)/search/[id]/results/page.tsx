@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { use } from "react";
 import {
@@ -12,17 +12,18 @@ import {
   Share2,
   Star,
   Download,
-  ChevronDown,
   Filter,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TECH_STACK_COLORS, getScoreColor } from "@/lib/constants";
+import { createClient } from "@/lib/supabase/client";
 
-interface MockBusiness {
+interface BusinessRow {
   id: string;
   name: string;
-  category: string;
-  website: string;
+  category: string | null;
+  website: string | null;
   score: number;
   tech: string;
   techLabel: string;
@@ -30,21 +31,31 @@ interface MockBusiness {
   socials: number;
   rating: number;
   reviews: number;
-  address: string;
+  address: string | null;
 }
 
-const MOCK_BUSINESSES: MockBusiness[] = [
-  { id: "1", name: "Sunrise Dental Care", category: "Dentist", website: "sunrisedental.com", score: 92, tech: "godaddy", techLabel: "GoDaddy", emails: 2, socials: 1, rating: 3.8, reviews: 24, address: "123 Main St, Austin, TX" },
-  { id: "2", name: "Premier Plumbing Co", category: "Plumber", website: "premierplumbing.net", score: 87, tech: "wix", techLabel: "Wix", emails: 1, socials: 3, rating: 4.2, reviews: 67, address: "456 Oak Ave, Austin, TX" },
-  { id: "3", name: "Green Thumb Landscaping", category: "Lawn Care", website: "greenthumbaustin.com", score: 81, tech: "squarespace", techLabel: "Squarespace", emails: 3, socials: 2, rating: 4.5, reviews: 112, address: "789 Elm Dr, Austin, TX" },
-  { id: "4", name: "Comfort Zone HVAC", category: "HVAC", website: "comfortzonehvac.com", score: 74, tech: "wordpress", techLabel: "WordPress", emails: 1, socials: 4, rating: 4.1, reviews: 89, address: "321 Pine Rd, Austin, TX" },
-  { id: "5", name: "Atlas Moving Services", category: "Movers", website: "atlasmoves.com", score: 68, tech: "weebly", techLabel: "Weebly", emails: 2, socials: 2, rating: 3.9, reviews: 45, address: "654 Cedar Ln, Austin, TX" },
-  { id: "6", name: "Crystal Clear Windows", category: "Window Cleaning", website: "crystalclearwin.com", score: 94, tech: "godaddy", techLabel: "GoDaddy", emails: 1, socials: 0, rating: 3.2, reviews: 8, address: "111 Birch Ct, Austin, TX" },
-  { id: "7", name: "Quick Fix Electric", category: "Electrician", website: "quickfixelectric.net", score: 83, tech: "wix", techLabel: "Wix", emails: 2, socials: 1, rating: 4.4, reviews: 156, address: "222 Maple St, Austin, TX" },
-  { id: "8", name: "Sparkle Clean Maids", category: "Cleaning", website: "sparkleclean.biz", score: 78, tech: "godaddy", techLabel: "GoDaddy", emails: 1, socials: 2, rating: 4.0, reviews: 33, address: "333 Walnut Ave, Austin, TX" },
-  { id: "9", name: "Austin Pet Grooming", category: "Pet Grooming", website: "austinpetgroom.com", score: 71, tech: "wordpress", techLabel: "WordPress", emails: 3, socials: 5, rating: 4.7, reviews: 201, address: "444 Spruce Dr, Austin, TX" },
-  { id: "10", name: "Lone Star Roofing", category: "Roofing", website: "lonestaroof.com", score: 89, tech: "weebly", techLabel: "Weebly", emails: 1, socials: 1, rating: 3.6, reviews: 18, address: "555 Ash Blvd, Austin, TX" },
-];
+function parseBusiness(raw: Record<string, unknown>): BusinessRow {
+  const enrichment = raw.enrichment as Record<string, unknown> | null;
+  const techStack = (enrichment?.techStack as string[]) ?? [];
+  const primaryTech = techStack[0]?.toLowerCase().replace("godaddybuilder", "godaddy").replace("nextjs", "nextjs") ?? "unknown";
+  const emails = (enrichment?.emails as string[]) ?? [];
+  const socials = enrichment?.socials as Record<string, string> | null;
+
+  return {
+    id: raw.id as string,
+    name: raw.name as string,
+    category: raw.category as string | null,
+    website: raw.website as string | null,
+    score: raw.lead_score as number,
+    tech: primaryTech,
+    techLabel: techStack[0] ?? "Unknown",
+    emails: emails.length + ((enrichment?.developerContacts as string[]) ?? []).length,
+    socials: Object.keys(socials ?? {}).length,
+    rating: raw.rating as number ?? 0,
+    reviews: raw.reviews as number ?? 0,
+    address: raw.address as string | null,
+  };
+}
 
 type SortKey = "score" | "name" | "rating" | "reviews" | "emails" | "socials";
 type SortDir = "asc" | "desc";
@@ -124,10 +135,39 @@ export default function ResultsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
+  const [jobQuery, setJobQuery] = useState("");
+  const [jobLocation, setJobLocation] = useState("");
+  const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [techFilter, setTechFilter] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    async function fetchData() {
+      const supabase = createClient();
+
+      // Fetch job info
+      const { data: job } = await supabase.from("scrape_jobs").select("query, location").eq("id", id).single();
+      if (job) {
+        const j = job as Record<string, unknown>;
+        setJobQuery(j.query as string);
+        setJobLocation(j.location as string);
+      }
+
+      // Fetch businesses
+      const { data } = await supabase
+        .from("businesses")
+        .select("*")
+        .eq("job_id", id)
+        .order("lead_score", { ascending: false });
+
+      setBusinesses(((data ?? []) as Record<string, unknown>[]).map(parseBusiness));
+      setLoading(false);
+    }
+    fetchData();
+  }, [id]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -139,7 +179,7 @@ export default function ResultsPage({
   };
 
   const sorted = useMemo(() => {
-    let filtered = [...MOCK_BUSINESSES];
+    let filtered = [...businesses];
 
     if (techFilter.length > 0) {
       filtered = filtered.filter((b) => techFilter.includes(b.tech));
@@ -159,16 +199,25 @@ export default function ResultsPage({
     });
 
     return filtered;
-  }, [sortKey, sortDir, techFilter]);
+  }, [businesses, sortKey, sortDir, techFilter]);
 
-  const hotCount = MOCK_BUSINESSES.filter((b) => b.score >= 80).length;
+  const hotCount = businesses.filter((b) => b.score >= 80).length;
 
   const availableTechs = [
-    ...new Set(MOCK_BUSINESSES.map((b) => b.tech)),
+    ...new Set(businesses.map((b) => b.tech)),
   ].map((tech) => ({
     key: tech,
-    label: MOCK_BUSINESSES.find((b) => b.tech === tech)?.techLabel || tech,
+    label: businesses.find((b) => b.tech === tech)?.techLabel || tech,
   }));
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 md:px-8 py-20 flex flex-col items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[var(--color-accent)] animate-spin mb-4" />
+        <p className="text-sm text-[var(--color-text-secondary)]">Loading results...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 md:px-8 py-8">
@@ -176,10 +225,10 @@ export default function ResultsPage({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">
-            Plumbers in Austin, TX
+            {jobQuery} in {jobLocation}
           </h1>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            {MOCK_BUSINESSES.length} results &middot;{" "}
+            {businesses.length} results &middot;{" "}
             <span className="text-emerald-600 font-medium">{hotCount} hot leads</span>
           </p>
         </div>

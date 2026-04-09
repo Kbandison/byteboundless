@@ -1,19 +1,47 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { User, CreditCard, Key, AlertTriangle, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { User, CreditCard, AlertTriangle, Loader2, Check, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+
+const PLANS = [
+  {
+    key: "free",
+    name: "Free Trial",
+    price: "$0",
+    description: "3 searches, 50 results each",
+  },
+  {
+    key: "pro",
+    name: "Pro",
+    price: "$29/mo",
+    description: "Unlimited searches, AI pitches, saved lists",
+  },
+  {
+    key: "agency",
+    name: "Agency",
+    price: "$79/mo",
+    description: "Everything in Pro + team seats, priority scraping",
+  },
+];
 
 export default function SettingsPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [website, setWebsite] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [plan, setPlan] = useState("free");
   const [searchesUsed, setSearchesUsed] = useState(0);
   const [searchesLimit, setSearchesLimit] = useState(3);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [userId, setUserId] = useState("");
 
   useEffect(() => {
     async function fetchProfile() {
@@ -21,6 +49,7 @@ export default function SettingsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setEmail(user.email ?? "");
+      setUserId(user.id);
 
       const { data } = await supabase
         .from("profiles")
@@ -33,11 +62,32 @@ export default function SettingsPage() {
         setPlan(p.plan as string);
         setSearchesUsed(p.searches_used as number);
         setSearchesLimit(p.searches_limit as number);
+        setFullName((p.full_name as string) ?? "");
+        setPhone((p.phone as string) ?? "");
+        setWebsite((p.website as string) ?? "");
+        setCompanyName((p.company_name as string) ?? "");
       }
       setLoading(false);
     }
     fetchProfile();
   }, []);
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    const supabase = createClient();
+    await supabase
+      .from("profiles")
+      .update({
+        full_name: fullName || null,
+        phone: phone || null,
+        website: website || null,
+        company_name: companyName || null,
+      } as never)
+      .eq("id", userId);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -48,11 +98,7 @@ export default function SettingsPage() {
   const handleDeleteAccount = async () => {
     setDeleting(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Delete profile (cascades to jobs, businesses, lists, etc.)
-    await supabase.from("profiles").delete().eq("id", user.id);
+    await supabase.from("profiles").delete().eq("id", userId);
     await supabase.auth.signOut();
     window.location.href = "/";
   };
@@ -72,17 +118,71 @@ export default function SettingsPage() {
       </h1>
 
       <div className="space-y-8">
-        {/* Account */}
+        {/* Profile */}
         <section className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-          <div className="flex items-center gap-3 mb-6">
-            <User className="w-5 h-5 text-[var(--color-text-dim)]" />
-            <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-              Account
-            </h2>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <User className="w-5 h-5 text-[var(--color-text-dim)]" />
+              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+                Profile
+              </h2>
+            </div>
+            <p className="text-xs text-[var(--color-text-dim)]">
+              This info is used in AI-generated pitches
+            </p>
           </div>
-          <div className="space-y-4">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-2">
+              <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-1.5">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="John Smith"
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-sm placeholder:text-[var(--color-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-1.5">
+                Company / Business Name
+              </label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Smith Web Design"
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-sm placeholder:text-[var(--color-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-1.5">
+                Phone
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(555) 123-4567"
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-sm placeholder:text-[var(--color-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-1.5">
+                Website
+              </label>
+              <input
+                type="url"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+                placeholder="https://smithwebdesign.com"
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-sm placeholder:text-[var(--color-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium block mb-1.5">
                 Email
               </label>
               <input
@@ -91,13 +191,29 @@ export default function SettingsPage() {
                 readOnly
                 className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-sm text-[var(--color-text-secondary)]"
               />
-              <p className="text-xs text-[var(--color-text-dim)] mt-1.5">
-                Email changes are managed through magic link authentication.
+              <p className="text-xs text-[var(--color-text-dim)] mt-1">
+                Managed through magic link authentication
               </p>
             </div>
+          </div>
+
+          <div className="flex items-center gap-3 mt-6">
+            <button
+              onClick={handleSaveProfile}
+              disabled={saving}
+              className="inline-flex items-center gap-2 bg-[var(--color-accent)] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : saved ? (
+                <><Check className="w-4 h-4" /> Saved</>
+              ) : (
+                "Save Profile"
+              )}
+            </button>
             <button
               onClick={handleSignOut}
-              className="text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] px-4 py-2 rounded-lg hover:border-[var(--color-border-hover)] hover:text-[var(--color-text-primary)] transition-colors"
+              className="text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] px-4 py-2.5 rounded-lg hover:border-[var(--color-border-hover)] hover:text-[var(--color-text-primary)] transition-colors"
             >
               Sign Out
             </button>
@@ -112,69 +228,65 @@ export default function SettingsPage() {
               Billing
             </h2>
           </div>
-          <div className="flex items-center justify-between p-4 rounded-lg bg-[var(--color-bg-secondary)]">
-            <div>
-              <p className="text-sm font-medium capitalize">{plan} Plan</p>
-              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                {searchesLimit === 999999
-                  ? "Unlimited searches"
-                  : `${searchesLimit - searchesUsed} searches remaining`}
-              </p>
-            </div>
-            {plan === "free" && (
-              <a href="/pricing" className="text-sm text-[var(--color-accent)] font-medium hover:underline">
-                Upgrade to Pro
-              </a>
-            )}
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-4">
+
+          {/* Usage stats */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="p-3 rounded-lg bg-[var(--color-bg-secondary)] text-center">
               <p className="text-2xl font-bold font-[family-name:var(--font-mono)]">
                 {searchesUsed}
               </p>
-              <p className="text-xs text-[var(--color-text-dim)] mt-1">
-                Searches used
-              </p>
+              <p className="text-xs text-[var(--color-text-dim)] mt-1">Searches used</p>
             </div>
             <div className="p-3 rounded-lg bg-[var(--color-bg-secondary)] text-center">
               <p className="text-2xl font-bold font-[family-name:var(--font-mono)]">
-                {searchesLimit === 999999 ? "∞" : searchesLimit}
+                {searchesLimit === 999999 ? "∞" : searchesLimit - searchesUsed}
               </p>
-              <p className="text-xs text-[var(--color-text-dim)] mt-1">
-                Search limit
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-[var(--color-bg-secondary)] text-center">
-              <p className="text-2xl font-bold font-[family-name:var(--font-mono)] capitalize">
-                {plan}
-              </p>
-              <p className="text-xs text-[var(--color-text-dim)] mt-1">
-                Current plan
-              </p>
+              <p className="text-xs text-[var(--color-text-dim)] mt-1">Remaining</p>
             </div>
           </div>
-        </section>
 
-        {/* API Access */}
-        <section className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-          <div className="flex items-center gap-3 mb-4">
-            <Key className="w-5 h-5 text-[var(--color-text-dim)]" />
-            <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-              API Access
-            </h2>
+          {/* Plan selector */}
+          <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-3">
+            Current Plan
+          </p>
+          <div className="space-y-3">
+            {PLANS.map((p) => (
+              <div
+                key={p.key}
+                className={cn(
+                  "flex items-center justify-between p-4 rounded-lg border transition-all",
+                  plan === p.key
+                    ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
+                    : "border-[var(--color-border)]"
+                )}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold">{p.name}</p>
+                    <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">{p.price}</span>
+                    {plan === p.key && (
+                      <span className="text-[10px] uppercase tracking-wider font-medium bg-[var(--color-accent)] text-white px-2 py-0.5 rounded">
+                        Current
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{p.description}</p>
+                </div>
+                {plan !== p.key && (
+                  <Link
+                    href="/pricing"
+                    className="text-xs text-[var(--color-accent)] font-medium hover:underline flex items-center gap-1"
+                  >
+                    {PLANS.findIndex((x) => x.key === p.key) > PLANS.findIndex((x) => x.key === plan) ? "Upgrade" : "Downgrade"}
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                )}
+              </div>
+            ))}
           </div>
-          {plan === "agency" ? (
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              API access coming soon. You&apos;ll be able to manage API keys here.
-            </p>
-          ) : (
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              API access is available on the Agency plan.{" "}
-              <a href="/pricing" className="text-[var(--color-accent)] hover:underline">
-                Upgrade to unlock
-              </a>
-            </p>
-          )}
+          <p className="text-xs text-[var(--color-text-dim)] mt-4">
+            Billing is managed through Stripe. Plan changes will be available once payment processing is set up.
+          </p>
         </section>
 
         {/* Danger Zone */}

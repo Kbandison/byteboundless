@@ -14,6 +14,10 @@ export interface Database {
           searches_used: number;
           searches_limit: number;
           stripe_customer_id: string | null;
+          full_name: string | null;
+          phone: string | null;
+          website: string | null;
+          company_name: string | null;
           created_at: string;
         };
         Insert: {
@@ -24,6 +28,10 @@ export interface Database {
           searches_used?: number;
           searches_limit?: number;
           stripe_customer_id?: string | null;
+          full_name?: string | null;
+          phone?: string | null;
+          website?: string | null;
+          company_name?: string | null;
           created_at?: string;
         };
         Update: {
@@ -34,6 +42,10 @@ export interface Database {
           searches_used?: number;
           searches_limit?: number;
           stripe_customer_id?: string | null;
+          full_name?: string | null;
+          phone?: string | null;
+          website?: string | null;
+          company_name?: string | null;
           created_at?: string;
         };
       };

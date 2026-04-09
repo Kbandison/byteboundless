@@ -281,24 +281,6 @@ async function enrichWebsite(business: RawBusiness): Promise<RawBusiness> {
     const copyrightYear = yearMatch ? parseInt(yearMatch[1], 10) : null;
     const yearsStale = copyrightYear ? new Date().getFullYear() - copyrightYear : null;
 
-    // Lighthouse scores via PageSpeed Insights API (free, no key needed)
-    let lighthouse: { performance: number; seo: number; accessibility: number } | null = null;
-    try {
-      const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url=${encodeURIComponent(home.finalUrl || business.website!)}&category=performance&category=seo&category=accessibility&strategy=mobile`;
-      const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(15000) });
-      if (psiRes.ok) {
-        const psi = await psiRes.json();
-        const cats = psi.lighthouseResult?.categories;
-        if (cats) {
-          lighthouse = {
-            performance: Math.round((cats.performance?.score ?? 0) * 100),
-            seo: Math.round((cats.seo?.score ?? 0) * 100),
-            accessibility: Math.round((cats.accessibility?.score ?? 0) * 100),
-          };
-        }
-      }
-    } catch { /* Lighthouse is best-effort — don't fail enrichment if it times out */ }
-
     return {
       ...business,
       enrichment: {
@@ -306,7 +288,7 @@ async function enrichWebsite(business: RawBusiness): Promise<RawBusiness> {
         finalUrl: home.finalUrl, loadMs: home.loadMs, sizeKb: home.sizeKb, title,
         emails: businessEmails, developerContacts: devEmails, socials, techStack: tech,
         copyrightYear, yearsStale, hasViewport, hasFavicon, hasOgImage, hasMetaDescription,
-        pagesCrawled: 1 + contactUrls.length, lighthouse,
+        pagesCrawled: 1 + contactUrls.length,
       },
     };
   } catch (err: unknown) {
@@ -586,6 +568,30 @@ export async function runUrlEnrich(urls: string[], onProgress: ProgressCallback)
     (done, total) => onProgress("enriching", done, total)
   );
 
+  // Lighthouse pass (sequential)
+  for (let i = 0; i < enriched.length; i++) {
+    const b = enriched[i];
+    const e = b.enrichment as Record<string, unknown> | undefined;
+    const url = (e?.finalUrl as string) || b.website;
+    if (!url || !e?.reachable) continue;
+    try {
+      const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile`;
+      const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(20000) });
+      if (psiRes.ok) {
+        const psi = await psiRes.json();
+        const cats = psi.lighthouseResult?.categories;
+        if (cats) {
+          (e as Record<string, unknown>).lighthouse = {
+            performance: Math.round((cats.performance?.score ?? 0) * 100),
+            seo: Math.round((cats.seo?.score ?? 0) * 100),
+            accessibility: Math.round((cats.accessibility?.score ?? 0) * 100),
+          };
+        }
+      }
+    } catch { /* skip */ }
+    await sleep(1500);
+  }
+
   // Phase: Score
   onProgress("scoring", 0, enriched.length);
   const scored = enriched.map((b, i) => {
@@ -622,6 +628,36 @@ export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallbac
       ENRICH_CONCURRENCY,
       (done, total) => onProgress("enriching", done, total)
     );
+  }
+
+  // Phase 3.5: Lighthouse (sequential, 1 at a time to avoid rate limits)
+  if (opts.enrich) {
+    for (let i = 0; i < enriched.length; i++) {
+      const b = enriched[i];
+      const e = b.enrichment as Record<string, unknown> | undefined;
+      const url = (e?.finalUrl as string) || b.website;
+      if (!url || !e?.reachable) continue;
+
+      try {
+        const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile`;
+        const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(20000) });
+        if (psiRes.ok) {
+          const psi = await psiRes.json();
+          const cats = psi.lighthouseResult?.categories;
+          if (cats) {
+            (e as Record<string, unknown>).lighthouse = {
+              performance: Math.round((cats.performance?.score ?? 0) * 100),
+              seo: Math.round((cats.seo?.score ?? 0) * 100),
+              accessibility: Math.round((cats.accessibility?.score ?? 0) * 100),
+            };
+          }
+        }
+      } catch { /* skip this one */ }
+
+      onProgress("scoring", i + 1, enriched.length);
+      // 1.5s delay between API calls to respect rate limits
+      await sleep(1500);
+    }
   }
 
   // Phase 4: Score

@@ -259,7 +259,17 @@ async function enrichWebsite(business: RawBusiness): Promise<RawBusiness> {
 
     const { business: businessEmails, developer: devEmails } = categorizeEmails([...rawEmails], home.finalUrl || business.website);
 
-    const hasViewport = /<meta[^>]+name=["']viewport["']/i.test(html);
+    // Check for viewport meta tag — also check without quotes and with spaces
+    const hasViewportMeta =
+      /<meta[^>]+name\s*=\s*["']?viewport["']?/i.test(html) ||
+      /<meta[^>]+content\s*=\s*["'][^"']*width\s*=/i.test(html);
+
+    // Platforms that are responsive by default — viewport is injected via JS at runtime
+    // and won't appear in the raw HTML fetch
+    const RESPONSIVE_PLATFORMS = ["Wix", "Squarespace", "Shopify", "Webflow", "Duda", "NextJS", "React"];
+    const isResponsivePlatform = tech.some((t) => RESPONSIVE_PLATFORMS.includes(t));
+
+    const hasViewport = hasViewportMeta || isResponsivePlatform;
     const hasFavicon = /<link[^>]+rel=["'](?:icon|shortcut icon)["']/i.test(html);
     const hasOgImage = /<meta[^>]+property=["']og:image["']/i.test(html);
     const hasMetaDescription = /<meta[^>]+name=["']description["']/i.test(html);

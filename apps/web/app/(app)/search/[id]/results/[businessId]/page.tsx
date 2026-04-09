@@ -250,7 +250,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           )}
 
           {/* Lighthouse Scores */}
-          {lighthouse && (
+          {lighthouse ? (
             <div className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
               <h3 className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-4 flex items-center gap-2">
                 Lighthouse Scores
@@ -275,7 +275,17 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 ))}
               </div>
             </div>
-          )}
+          ) : e?.reachable && lead.website ? (
+            <div className="p-5 rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+              <h3 className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-2 flex items-center gap-2">
+                Lighthouse Scores
+                <HelpTip text="Google's automated audit of the site's performance, SEO, and accessibility." />
+              </h3>
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                Audit timed out for this site — likely due to slow page load or server issues. This itself is a signal: if Google can&apos;t audit it quickly, visitors are probably having a poor experience too.
+              </p>
+            </div>
+          ) : null}
 
           {/* Emails */}
           {(emails.length > 0 || devEmails.length > 0) && (

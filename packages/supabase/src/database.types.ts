@@ -9,6 +9,7 @@ export interface Database {
         Row: {
           id: string;
           email: string;
+          role: "user" | "admin";
           plan: "free" | "pro" | "agency";
           searches_used: number;
           searches_limit: number;
@@ -18,6 +19,7 @@ export interface Database {
         Insert: {
           id: string;
           email: string;
+          role?: "user" | "admin";
           plan?: "free" | "pro" | "agency";
           searches_used?: number;
           searches_limit?: number;
@@ -27,6 +29,7 @@ export interface Database {
         Update: {
           id?: string;
           email?: string;
+          role?: "user" | "admin";
           plan?: "free" | "pro" | "agency";
           searches_used?: number;
           searches_limit?: number;

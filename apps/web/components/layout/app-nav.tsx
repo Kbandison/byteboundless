@@ -9,10 +9,12 @@ import {
   Plus,
   Menu,
   X,
+  Shield,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { APP_NAV_LINKS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -23,11 +25,23 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 export function AppNav() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [mobileOpen]);
+
+  useEffect(() => {
+    async function checkAdmin() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      if ((data as { role: string } | null)?.role === "admin") setIsAdmin(true);
+    }
+    checkAdmin();
+  }, []);
 
   return (
     <>
@@ -65,8 +79,22 @@ export function AppNav() {
             })}
           </div>
 
-          {/* Right side: New Search CTA */}
-          <div className="hidden md:flex items-center">
+          {/* Right side */}
+          <div className="hidden md:flex items-center gap-3">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200",
+                  pathname.startsWith("/admin")
+                    ? "bg-red-500/10 text-red-600"
+                    : "text-[var(--color-text-secondary)] hover:text-red-600 hover:bg-red-50"
+                )}
+              >
+                <Shield className="w-4 h-4" />
+                Admin
+              </Link>
+            )}
             <Link
               href="/search/new"
               className="flex items-center gap-2 text-sm bg-[var(--color-accent)] text-white px-5 py-2.5 rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors duration-200 font-medium"

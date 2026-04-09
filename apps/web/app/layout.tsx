@@ -40,7 +40,16 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${interTight.variable}`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* Prevent flash of wrong theme */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("bb-theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme:dark)").matches);if(d)document.documentElement.classList.add("dark")}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body>
         <SmoothScrollProvider>
           {children}

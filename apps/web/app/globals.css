@@ -2,13 +2,12 @@
 
 /* ================================================
    PROJECT: ByteBoundless
-   ARCHETYPE: Tech Utilitarian → Light Clinical
+   ARCHETYPE: Tech Utilitarian → Light Clinical / Dark Terminal
    FONTS: Geist (display) + Geist Mono (accents) + Inter Tight (body)
-   PALETTE: #FAFAFA / #1A1A1A / #0066FF / #E5E5E5
-   DIALS: VARIANCE 4 / MOTION 4 / DENSITY 6 / DARK 0
    ================================================ */
 
 @theme inline {
+  /* Light theme (default) */
   --color-bg-primary: #FAFAFA;
   --color-bg-secondary: #F0F0F0;
   --color-bg-tertiary: #FFFFFF;
@@ -33,6 +32,29 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Dark theme — activated by .dark class on <html> */
+html.dark {
+  --color-bg-primary: #0A0A0A;
+  --color-bg-secondary: #111111;
+  --color-bg-tertiary: #1A1A1A;
+  --color-text-primary: #E8E8E8;
+  --color-text-secondary: #888888;
+  --color-text-dim: #444444;
+  --color-accent: #3B82F6;
+  --color-accent-hover: #60A5FA;
+  --color-border: #1F1F1F;
+  --color-border-hover: #2A2A2A;
+
+  --color-accent-2: rgba(59, 130, 246, 0.02);
+  --color-accent-3: rgba(59, 130, 246, 0.03);
+  --color-accent-4: rgba(59, 130, 246, 0.04);
+  --color-accent-5: rgba(59, 130, 246, 0.05);
+  --color-accent-10: rgba(59, 130, 246, 0.10);
+  --color-bg-primary-80: rgba(10, 10, 10, 0.80);
+
+  color-scheme: dark;
+}
+
 @layer base {
   html {
     scroll-behavior: auto;
@@ -47,6 +69,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -74,6 +97,15 @@
     outline-offset: 2px;
   }
 }
+
+/* Dark mode overrides for hardcoded light colors used in components */
+html.dark .bg-red-50, html.dark .bg-red-50\/50 { background-color: rgba(239, 68, 68, 0.1); }
+html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.1); }
+html.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.1); }
+html.dark .bg-blue-50 { background-color: rgba(59, 130, 246, 0.1); }
+html.dark .bg-violet-50 { background-color: rgba(139, 92, 246, 0.1); }
+html.dark .border-red-200 { border-color: rgba(239, 68, 68, 0.2); }
+html.dark .text-red-700 { color: #f87171; }
 
 /* Reduced motion — outside @layer so it overrides everything */
 @media (prefers-reduced-motion: reduce) {

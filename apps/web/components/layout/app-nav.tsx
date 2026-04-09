@@ -12,11 +12,14 @@ import {
   Shield,
   LogOut,
   BookOpen,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { APP_NAV_LINKS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useTheme } from "@/hooks/use-theme";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -26,6 +29,8 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export function AppNav() {
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -106,6 +111,13 @@ export function AppNav() {
               New Search
             </Link>
             <button
+              onClick={() => setTheme(isDark ? "light" : "dark")}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors duration-200"
+              aria-label="Toggle dark mode"
+            >
+              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            <button
               onClick={async () => {
                 const supabase = createClient();
                 await supabase.auth.signOut();
@@ -166,6 +178,13 @@ export function AppNav() {
                 <Plus className="w-4 h-4" />
                 New Search
               </Link>
+              <button
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors duration-200"
+              >
+                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                {isDark ? "Light Mode" : "Dark Mode"}
+              </button>
               <button
                 onClick={async () => {
                   const supabase = createClient();

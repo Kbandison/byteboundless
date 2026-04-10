@@ -9,21 +9,21 @@ const STEPS = [
     icon: MapPin,
     title: "Search",
     description:
-      'Enter a business category and location. "Plumbers in Austin" or "Dentists in Austin, TX." We scrape Google Maps for every matching business.',
+      "Enter a category and location, pick your radius (city, nearby, region, or statewide), and we scrape Google Maps. Already have a list of URLs? Paste them — we'll enrich those instead.",
   },
   {
     number: "02",
     icon: Scan,
     title: "Enrich",
     description:
-      "We visit every website, detect their tech stack, find contact emails, check social profiles, and flag staleness signals like expired SSL or no mobile viewport.",
+      "We visit every website, detect the tech stack, pull contact emails, find social profiles, run a Lighthouse audit for performance/SEO/accessibility, and flag staleness like expired SSL or no mobile viewport.",
   },
   {
     number: "03",
     icon: Sparkles,
     title: "Score & Pitch",
     description:
-      "Our AI ranks every lead 0\u2013100 by rebuild opportunity and generates a tailored pitch angle. You get a sorted list of businesses that actually need your help.",
+      "Our AI ranks every lead 0\u2013100 by rebuild opportunity and writes a tailored pitch angle, three improvement suggestions, and a draft outreach email — all tied to that business's actual data.",
   },
 ];
 

@@ -34,7 +34,7 @@ export default function HowItWorksPage() {
                   "Mobile viewport presence",
                   "SSL certificate validity",
                   "Content staleness signals",
-                  "Page load performance",
+                  "Lighthouse audit (Performance, SEO, Accessibility)",
                   "Google Business claimed status",
                 ].map((item, i) => (
                   <div
@@ -89,6 +89,61 @@ export default function HowItWorksPage() {
                 tied to real signals, and a draft outreach email. Every pitch is
                 unique because it&apos;s built from that business&apos;s actual data — not
                 a template.
+              </p>
+            </div>
+
+            <div>
+              <span className="text-xs font-[family-name:var(--font-mono)] text-[var(--color-accent)] mb-3 block">
+                Outreach Pipeline
+              </span>
+              <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight mb-4">
+                Track every lead from save to signed
+              </h2>
+              <p className="text-[var(--color-text-secondary)] leading-relaxed mb-4">
+                Save a lead and it lands in your built-in pipeline:{" "}
+                <span className="text-[var(--color-text-primary)] font-medium">
+                  Saved → Contacted → Replied → Quoted → Signed
+                </span>{" "}
+                (with a Lost lane for the ones that didn&apos;t pan out). Tag the
+                deal amount when you close so you can see exactly which campaigns
+                pay off.
+              </p>
+              <p className="text-[var(--color-text-secondary)] leading-relaxed">
+                Filter the results table by status to instantly see who you&apos;ve
+                already contacted, who&apos;s gone quiet, and who&apos;s ready
+                for a follow-up.
+              </p>
+            </div>
+
+            <div>
+              <span className="text-xs font-[family-name:var(--font-mono)] text-[var(--color-accent)] mb-3 block">
+                Bulk Workflow
+              </span>
+              <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight mb-4">
+                Built for outreach at scale
+              </h2>
+              <p className="text-[var(--color-text-secondary)] leading-relaxed">
+                Select 50 leads with one click. Save them all to a list, mark
+                them all contacted, or export them to CSV. Filter by score, tech
+                stack, contact info, and outreach status to find exactly the
+                slice you want — &ldquo;hot leads on Wix with a phone number I
+                haven&apos;t contacted yet&rdquo; in three clicks. Sort by anything.
+                ByteBoundless is a tool, not a click-fest.
+              </p>
+            </div>
+
+            <div>
+              <span className="text-xs font-[family-name:var(--font-mono)] text-[var(--color-accent)] mb-3 block">
+                URL Import
+              </span>
+              <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight mb-4">
+                Already have a list? Skip the scrape.
+              </h2>
+              <p className="text-[var(--color-text-secondary)] leading-relaxed">
+                If you already have a list of business websites — from a referral,
+                an industry directory, or a previous campaign — paste them into
+                URL Import mode. We&apos;ll run the same enrichment, scoring, and
+                AI pitch generation on them, no Google Maps scrape required.
               </p>
             </div>
           </div>

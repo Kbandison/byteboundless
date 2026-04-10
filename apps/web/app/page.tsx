@@ -3,6 +3,7 @@ import { Hero } from "@/components/sections/hero";
 import { Problem } from "@/components/sections/problem";
 import { HowItWorks } from "@/components/sections/how-it-works";
 import { ResultsPreview } from "@/components/sections/results-preview";
+import { Pipeline } from "@/components/sections/pipeline";
 import { PricingTeaser } from "@/components/sections/pricing-teaser";
 import { FAQ } from "@/components/sections/faq";
 import { Founder } from "@/components/sections/founder";
@@ -17,6 +18,7 @@ export default function Home() {
       <Problem />
       <HowItWorks />
       <ResultsPreview />
+      <Pipeline />
       <PricingTeaser />
       <FAQ />
       <Founder />

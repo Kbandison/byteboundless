@@ -780,7 +780,7 @@ Surface upgrade prompts to non-top-tier users from a persistent location (sideba
 - Make it dismissible. Persist dismissal to `localStorage` using `useSyncExternalStore` — NOT setState-in-effect.
 - Collapsed sidebar variant: just the icon (`Sparkles`) in an accent-tinted square button.
 - Expanded variant: gradient background (`bg-gradient-to-br from-accent-2 to-bg-tertiary`), badge with target tier, headline, body, accent CTA link, dismiss X in the top-right corner.
-- Copy should sell the *next* tier's specific gains, not generic "upgrade for more". For free → pro: "Saved lists, CSV export, Lighthouse audits". For pro → agency: "5 seats, 200 searches/mo, unlimited AI pitches".
+- Copy should sell the *next* tier's specific gains, not generic "upgrade for more". For free → pro: "Saved lists, CSV export, Lighthouse audits". For pro → agency: "200 searches/mo, 1,000 results each, unlimited AI pitches".
 
 ```tsx
 const PROMOS = {

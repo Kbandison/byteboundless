@@ -534,6 +534,19 @@ export default function SettingsPage() {
                 </div>
               )}
 
+              {/* Manage subscription via Stripe Billing Portal */}
+              {(plan === "pro" || plan === "agency") && (
+                <div className="mt-8 pt-6 border-t border-[var(--color-border)]">
+                  <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-3">
+                    Manage Subscription
+                  </p>
+                  <p className="text-xs text-[var(--color-text-secondary)] mb-4">
+                    Update payment methods, download invoices, change plans, or cancel your subscription.
+                  </p>
+                  <ManageBillingButton />
+                </div>
+              )}
+
               <p className="text-xs text-[var(--color-text-dim)] mt-4">
                 Billing is managed through Stripe.
               </p>
@@ -652,18 +665,26 @@ function PlanChangeButton({
   const isUpgrade = tierOrder[targetPlan] > tierOrder[currentPlan];
 
   async function handleClick() {
-    // Downgrade / cancel: users have to do this from the Stripe portal
-    // (or contact support). For now we point them at the docs/pricing.
-    if (!isUpgrade) {
-      toast.info("To downgrade or cancel, please contact support or use the billing portal.");
-      return;
-    }
-
-    // Upgrade: create a subscription checkout session
-    if (targetPlan === "free") return; // shouldn't happen — free isn't an upgrade
-
     setLoading(true);
     try {
+      // Downgrade / cancel: route through the Stripe Billing Portal so the
+      // user gets Stripe's hosted UI for cancellation (with retention prompts,
+      // cancel_at_period_end handling, etc.). Portal changes come back via
+      // webhook events the /api/billing/webhook handler already processes.
+      if (!isUpgrade) {
+        const res = await fetch("/api/billing/portal", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || "Failed to open billing portal");
+          return;
+        }
+        if (data.url) window.location.href = data.url;
+        return;
+      }
+
+      // Upgrade: create a subscription checkout session
+      if (targetPlan === "free") return; // shouldn't happen — free isn't an upgrade
+
       const res = await fetch("/api/billing/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -698,6 +719,47 @@ function PlanChangeButton({
         "Downgrade"
       )}
       {!loading && <ArrowRight className="w-3 h-3" />}
+    </button>
+  );
+}
+
+// ─── Manage billing button — opens the Stripe Customer Portal ───
+// Used from the billing section for paid-plan users. The portal handles
+// cancellation, payment method updates, invoices, and plan changes.
+function ManageBillingButton() {
+  const [loading, setLoading] = useState(false);
+
+  async function handleClick() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to open billing portal");
+        return;
+      }
+      if (data.url) window.location.href = data.url;
+    } catch {
+      toast.error("Failed to open billing portal");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[var(--color-border)] text-sm font-medium text-[var(--color-text-primary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50"
+    >
+      {loading ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : (
+        <>
+          Manage Billing
+          <ArrowRight className="w-4 h-4" />
+        </>
+      )}
     </button>
   );
 }

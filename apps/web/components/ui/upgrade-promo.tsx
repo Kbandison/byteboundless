@@ -21,8 +21,8 @@ const PROMOS: Record<"free" | "pro", PromoConfig> = {
   },
   pro: {
     badge: "Agency",
-    title: "Scale with your team",
-    body: "5 seats, 200 searches/mo, unlimited AI pitches, and priority scraping.",
+    title: "Scale your outreach",
+    body: "200 searches/mo, 1,000 results each, unlimited AI pitches, and priority scraping.",
     cta: "Upgrade to Agency",
   },
 };

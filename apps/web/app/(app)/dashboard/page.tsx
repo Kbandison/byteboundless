@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Target, Plus, Search, Users, Flame, ArrowRight } from "lucide-react";
+import { Target, Plus, Search, Users, Flame, ArrowRight, Zap, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@byteboundless/supabase";
@@ -8,29 +8,28 @@ type ScrapeJob = Database["public"]["Tables"]["scrape_jobs"]["Row"];
 
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Fetch user profile for personalized plays
+  // Fetch profile
   const { data: profileRaw } = await supabase
     .from("profiles")
-    .select("location")
+    .select("location, full_name, plan, searches_used")
     .eq("id", user!.id)
     .single();
-  const userLocation = (profileRaw as { location: string | null } | null)?.location || "Austin, TX";
+  const profile = profileRaw as { location: string | null; full_name: string | null; plan: string; searches_used: number } | null;
+  const userLocation = profile?.location || "Austin, TX";
+  const firstName = profile?.full_name?.split(" ")[0] || "there";
 
   // Fetch recent searches
   const { data } = await supabase
     .from("scrape_jobs")
-    .select("id, query, location, status, options, phase, progress_current, progress_total, created_at, completed_at")
+    .select("id, query, location, status, options, progress_total, created_at, completed_at")
     .eq("user_id", user!.id)
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(6);
 
   const recentJobs = (data ?? []) as (Pick<ScrapeJob, "id" | "query" | "location" | "status" | "created_at"> & {
-    options: { strict: boolean; maxResults: number; enrich: boolean };
+    options: Record<string, unknown>;
     progress_total: number;
     completed_at: string | null;
   })[];
@@ -40,7 +39,6 @@ export default async function DashboardPage() {
     .select("id", { count: "exact", head: true })
     .eq("user_id", user!.id);
 
-  // Get lead counts from user's jobs
   const jobIds = recentJobs.map((j) => j.id);
   let totalLeadCount = 0;
   let hotLeadCount = 0;
@@ -60,195 +58,203 @@ export default async function DashboardPage() {
     hotLeadCount = hl ?? 0;
   }
 
-  const stats = [
-    { label: "Total Searches", value: totalSearches ?? 0, icon: Search },
-    { label: "Total Leads", value: totalLeadCount, icon: Users },
-    { label: "Hot Leads", value: hotLeadCount, icon: Flame },
+  const hasSearches = recentJobs.length > 0;
+  const conversionRate = totalLeadCount > 0 ? Math.round((hotLeadCount / totalLeadCount) * 100) : 0;
+
+  const PLAYS = [
+    { emoji: "🦷", title: "Dentists", query: "dentist", radius: "nearby" },
+    { emoji: "🌿", title: "Landscapers", query: "landscaping", radius: "nearby" },
+    { emoji: "🔧", title: "Plumbers", query: "plumber", radius: "nearby" },
+    { emoji: "🍽️", title: "Restaurants", query: "restaurant", radius: "city" },
+    { emoji: "⚖️", title: "Law Firms", query: "law firm", radius: "nearby" },
+    { emoji: "🏠", title: "Real Estate", query: "real estate agent", radius: "region" },
+    { emoji: "💇", title: "Salons", query: "hair salon", radius: "city" },
+    { emoji: "🚗", title: "Auto Repair", query: "auto repair", radius: "nearby" },
   ];
 
-  const hasSearches = recentJobs && recentJobs.length > 0;
-
   return (
-    <div className="mx-auto max-w-7xl px-6 md:px-8 py-10">
-      {/* Greeting */}
-      <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight text-[var(--color-text-primary)]">
-        Welcome back
-      </h1>
-      <p className="mt-1 text-[var(--color-text-secondary)] text-sm">
-        Here&apos;s an overview of your lead generation activity.
-      </p>
-
-      {/* Stats Row */}
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div
-              key={stat.label}
-              className="bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl p-6 flex items-center gap-4"
-            >
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--color-bg-secondary)]">
-                <Icon className="w-5 h-5 text-[var(--color-text-secondary)]" />
-              </div>
-              <div>
-                <p className="text-sm text-[var(--color-text-secondary)]">
-                  {stat.label}
-                </p>
-                <p className="text-2xl font-bold font-[family-name:var(--font-mono)] text-[var(--color-text-primary)]">
-                  {stat.value}
-                </p>
-              </div>
-            </div>
-          );
-        })}
+    <div className="mx-auto max-w-7xl px-6 md:px-8 py-8 md:py-12">
+      {/* Header — oversized display font moment */}
+      <div className="flex items-end justify-between mb-10">
+        <div>
+          <p className="text-xs uppercase tracking-[0.15em] text-[var(--color-accent)] font-medium font-[family-name:var(--font-mono)] mb-2">
+            Dashboard
+          </p>
+          <h1 className="font-[family-name:var(--font-display)] text-4xl md:text-5xl font-bold tracking-tight">
+            Hey, {firstName}
+          </h1>
+        </div>
+        <Link
+          href="/search/new"
+          className="hidden md:inline-flex items-center gap-2 bg-[var(--color-accent)] text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-[var(--color-accent-hover)] transition-all duration-300"
+        >
+          <Plus className="w-4 h-4" />
+          New Search
+        </Link>
       </div>
 
-      {/* Quick Plays */}
-      <div className="mt-10">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-bold tracking-tight text-[var(--color-text-primary)]">
+      {/* Bento Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+        {/* Big stat — hot leads (spans 2 cols, 2 rows) */}
+        <div className="col-span-2 row-span-2 p-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Flame className="w-5 h-5 text-emerald-500" />
+              <span className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium">Hot Leads</span>
+            </div>
+            <p className="font-[family-name:var(--font-mono)] text-7xl md:text-8xl font-bold tracking-tight text-emerald-500">
+              {hotLeadCount}
+            </p>
+            <p className="text-sm text-[var(--color-text-secondary)] mt-2">
+              Score 80+ — ready to pitch
+            </p>
+          </div>
+          {hotLeadCount > 0 && (
+            <Link
+              href="/search"
+              className="inline-flex items-center gap-2 text-sm text-[var(--color-accent)] font-medium hover:underline mt-4"
+            >
+              View hot leads <ArrowRight className="w-4 h-4" />
+            </Link>
+          )}
+        </div>
+
+        {/* Total searches */}
+        <div className="p-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+          <Search className="w-4 h-4 text-[var(--color-text-dim)] mb-3" />
+          <p className="font-[family-name:var(--font-mono)] text-3xl font-bold">{totalSearches ?? 0}</p>
+          <p className="text-xs text-[var(--color-text-dim)] mt-1">Searches</p>
+        </div>
+
+        {/* Total leads */}
+        <div className="p-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+          <Users className="w-4 h-4 text-[var(--color-text-dim)] mb-3" />
+          <p className="font-[family-name:var(--font-mono)] text-3xl font-bold">{totalLeadCount}</p>
+          <p className="text-xs text-[var(--color-text-dim)] mt-1">Total Leads</p>
+        </div>
+
+        {/* Conversion rate */}
+        <div className="p-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+          <TrendingUp className="w-4 h-4 text-[var(--color-text-dim)] mb-3" />
+          <p className="font-[family-name:var(--font-mono)] text-3xl font-bold">{conversionRate}%</p>
+          <p className="text-xs text-[var(--color-text-dim)] mt-1">Hot Rate</p>
+        </div>
+
+        {/* Plan */}
+        <div className="p-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+          <Zap className="w-4 h-4 text-[var(--color-text-dim)] mb-3" />
+          <p className="font-[family-name:var(--font-display)] text-lg font-bold capitalize">{profile?.plan ?? "free"}</p>
+          <p className="text-xs text-[var(--color-text-dim)] mt-1">Current Plan</p>
+        </div>
+      </div>
+
+      {/* Quick Plays — compact row */}
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">
             Quick Plays
           </h2>
-          <span className="text-xs text-[var(--color-text-dim)]">One-click searches tailored to web dev outreach</span>
+          <span className="text-xs text-[var(--color-text-dim)] hidden sm:block">One-click searches for your area</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[
-            { emoji: "🦷", title: "Dentists on Wix", desc: "High-conversion niche — most still on old builders", query: "dentist", radius: "nearby" },
-            { emoji: "🌿", title: "Landscapers", desc: "Many have no site or Facebook-only presence", query: "landscaping", radius: "nearby" },
-            { emoji: "🔧", title: "Plumbers", desc: "Essential service, often outdated web presence", query: "plumber", radius: "nearby" },
-            { emoji: "🍽️", title: "Restaurants", desc: "Need online ordering, menus, and mobile sites", query: "restaurant", radius: "city" },
-            { emoji: "⚖️", title: "Law Firms", desc: "High-ticket clients, willing to invest in web", query: "law firm", radius: "nearby" },
-            { emoji: "🏠", title: "Real Estate Agents", desc: "Need IDX integration, modern listings pages", query: "real estate agent", radius: "region" },
-            { emoji: "💇", title: "Hair Salons & Barbers", desc: "Need booking systems and mobile-first design", query: "hair salon", radius: "city" },
-            { emoji: "🚗", title: "Auto Repair Shops", desc: "Often GoDaddy/Wix sites from 2015", query: "auto repair", radius: "nearby" },
-          ].map((play) => (
+        <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+          {PLAYS.map((play) => (
             <Link
               key={play.query}
               href={`/search/new?query=${encodeURIComponent(play.query)}&location=${encodeURIComponent(userLocation)}&radius=${play.radius}`}
-              className="group p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/30 hover:shadow-sm transition-all duration-300"
+              className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/30 hover:shadow-sm transition-all duration-200 text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]"
             >
-              <div className="flex items-start gap-3">
-                <span className="text-xl">{play.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold group-hover:text-[var(--color-accent)] transition-colors">
-                    {play.title}
-                  </p>
-                  <p className="text-xs text-[var(--color-text-dim)] mt-0.5">
-                    {play.desc}
-                  </p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
-              </div>
+              <span>{play.emoji}</span>
+              {play.title}
             </Link>
           ))}
         </div>
       </div>
 
       {/* Recent Searches */}
-      <div className="mt-12">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
-            Recent Searches
-          </h2>
-          {hasSearches && (
-            <Link
-              href="/search/new"
-              className="inline-flex items-center gap-2 text-sm bg-[var(--color-accent)] text-white px-5 py-2.5 rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors font-medium"
-            >
-              <Plus className="w-4 h-4" />
-              New Search
-            </Link>
-          )}
-        </div>
+      <div>
+        <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight mb-4">
+          Recent Activity
+        </h2>
 
         {hasSearches ? (
-          <div className="bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl overflow-hidden divide-y divide-[var(--color-border)]/50">
+          <div className="space-y-2">
             {recentJobs.map((job) => (
               <Link
                 key={job.id}
-                href={
-                  job.status === "completed"
-                    ? `/search/${job.id}/results`
-                    : `/search/${job.id}`
-                }
-                className="flex items-center justify-between px-6 py-4 hover:bg-[var(--color-bg-secondary)]/30 transition-colors group"
+                href={job.status === "completed" ? `/search/${job.id}/results` : `/search/${job.id}`}
+                className="flex items-center justify-between px-5 py-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/20 transition-all duration-200 group"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium group-hover:text-[var(--color-accent)] transition-colors">
-                    {job.query} in {job.location}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                    <span
-                      className={cn(
-                        "text-xs font-medium",
-                        job.status === "completed"
-                          ? "text-emerald-600"
-                          : job.status === "running"
-                            ? "text-[var(--color-accent)]"
-                            : job.status === "failed"
-                              ? "text-red-500"
-                              : "text-[var(--color-text-dim)]"
-                      )}
-                    >
-                      {job.status}
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <span className={cn(
+                      "w-2 h-2 rounded-full shrink-0",
+                      job.status === "completed" ? "bg-emerald-500" :
+                      job.status === "running" ? "bg-[var(--color-accent)] animate-pulse" :
+                      job.status === "failed" ? "bg-red-500" : "bg-[var(--color-text-dim)]"
+                    )} />
+                    <p className="text-sm font-medium group-hover:text-[var(--color-accent)] transition-colors truncate">
+                      {job.query} in {job.location}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 ml-5">
                     {job.status === "completed" && job.progress_total > 0 && (
-                      <span className="text-xs text-[var(--color-text-dim)] font-[family-name:var(--font-mono)]">
+                      <span className="text-xs font-[family-name:var(--font-mono)] text-[var(--color-text-dim)]">
                         {job.progress_total} results
                       </span>
                     )}
-                    <span className="text-xs text-[var(--color-text-dim)]">
-                      max {job.options.maxResults}
-                    </span>
                     {(() => {
-                      const opts = job.options as Record<string, unknown>;
-                      const rad = opts.radius as string | undefined;
-                      return rad ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-medium capitalize">{rad}</span>
-                      ) : null;
+                      const rad = (job.options as Record<string, unknown>).radius as string | undefined;
+                      return rad ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg-secondary)] text-[var(--color-text-dim)] font-medium capitalize">{rad}</span> : null;
                     })()}
-                    {job.options.enrich && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">enriched</span>
-                    )}
                     <span className="text-xs text-[var(--color-text-dim)]">
-                      {new Date(job.created_at).toLocaleDateString()} {new Date(job.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(job.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                     </span>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                <ArrowRight className="w-4 h-4 text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </Link>
             ))}
           </div>
         ) : (
-          /* Empty State */
-          <div className="flex flex-col items-center justify-center bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl py-16 px-6 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--color-bg-secondary)] mb-6">
-              <Target className="w-8 h-8 text-[var(--color-text-dim)]" />
+          /* Empty State — personality per APP.md */
+          <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] p-12 text-center">
+            <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-accent-4)] to-transparent pointer-events-none" />
+            <div className="relative">
+              <Target className="w-12 h-12 text-[var(--color-text-dim)] mx-auto mb-6" />
+              <h3 className="font-[family-name:var(--font-display)] text-2xl font-bold mb-2">
+                Your pipeline starts here
+              </h3>
+              <p className="text-sm text-[var(--color-text-secondary)] max-w-md mx-auto mb-8">
+                Run your first search to discover businesses that need better websites. We&apos;ll score them, find their contact info, and write your pitch.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link
+                  href={`/search/new?query=lawn+care&location=${encodeURIComponent(userLocation)}`}
+                  className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-accent)] hover:underline"
+                >
+                  <Search className="w-4 h-4" />
+                  Try: lawn care in {userLocation}
+                </Link>
+                <Link
+                  href="/search/new"
+                  className="inline-flex items-center gap-2 bg-[var(--color-accent)] text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-[var(--color-accent-hover)] transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Search
+                </Link>
+              </div>
             </div>
-            <h3 className="font-[family-name:var(--font-display)] text-lg font-bold text-[var(--color-text-primary)]">
-              No searches yet
-            </h3>
-            <p className="mt-2 text-sm text-[var(--color-text-secondary)] max-w-md">
-              Run your first search to discover businesses that need better
-              websites.
-            </p>
-            <Link
-              href={`/search/new?query=lawn+care&location=${encodeURIComponent(userLocation)}`}
-              className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
-            >
-              <Search className="w-4 h-4" />
-              Try: lawn care in {userLocation}
-            </Link>
-            <Link
-              href="/search/new"
-              className="mt-4 inline-flex items-center gap-2 text-sm font-medium bg-[var(--color-accent)] text-white px-6 py-3 rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              New Search
-            </Link>
           </div>
         )}
       </div>
+
+      {/* Mobile FAB */}
+      <Link
+        href="/search/new"
+        className="md:hidden fixed bottom-6 right-6 z-30 w-14 h-14 bg-[var(--color-accent)] text-white rounded-full flex items-center justify-center shadow-lg hover:bg-[var(--color-accent-hover)] transition-all"
+      >
+        <Plus className="w-6 h-6" />
+      </Link>
     </div>
   );
 }

@@ -6,12 +6,13 @@ A modular design system AND production workflow for Claude Code. Turns AI-assist
 
 ```
 luxweb-skill/
-├── LUXWEB.md        # Master rules — design constitution, philosophy, dials, anti-slop
+├── LUXWEB.md        # Master rules — design constitution, philosophy, dials, anti-slop, gates
 ├── WORKFLOW.md      # The 7-phase production pipeline (start here for new projects)
-├── ARCHETYPES.md    # 8 design archetypes × 3 variations = 24 creative directions
-├── STACK.md         # Project setup — deps, directory structure, base files
+├── ARCHETYPES.md    # 8 design archetypes × 3 variations = 24 creative directions (marketing)
+├── APP.md           # 21 layout options across dashboards, settings, auth, data displays (admin/CRM/CMS)
+├── STACK.md         # Project setup — deps, directory structure, base files, CSS pitfalls
 ├── MOTION.md        # Animation — GSAP, Framer Motion, Lenis, scroll choreography
-├── COMPONENTS.md    # UI patterns — nav, hero, cards, CTA, footer, states
+├── COMPONENTS.md    # Marketing UI patterns — nav, hero, cards, CTA, footer, states
 ├── 3D.md            # WebGL — React Three Fiber, shaders, particles (optional)
 └── README.md        # This file
 ```
@@ -24,15 +25,23 @@ When you ask Claude Code to build anything new, it follows the 7 phases from `WO
 2. **Archetype Gate** — Present 8 archetypes, wait for selection, present 3 variations, wait for selection. Mandatory.
 3. **Content Inventory** — Claude Code drafts every section, every piece of copy, every image needed. You review.
 4. **Asset Sourcing** — Claude Code generates a batch of Higgsfield-ready image prompts from the archetype template. You generate in Higgsfield, drop files into `public/images/` with the matching filenames, Claude Code optimizes.
-5. **Build** — Scaffolds the project, applies the archetype spec, builds sections one at a time. Pauses after the hero for your review.
+5. **Build** — Scaffolds the project, applies the archetype spec, builds sections one at a time. Pauses after the hero for your review. **If the project includes app surfaces (dashboards, admin, settings, auth), Claude Code runs the App Layout Selection Gate from APP.md before building them.**
 6. **Polish** — Runs the 40-point anti-slop audit, performance check, accessibility check, responsive testing across 6 widths.
 7. **Deploy** — Vercel push, env vars, domain, post-deploy verification checklist.
 
 Each phase has clear ownership (Claude Code / You / Shared) and natural checkpoints where you can course-correct without rebuilding.
 
-## The Mandatory Gate (Why This Works)
+## The Two Mandatory Gates
 
-The most important feature: **Claude Code cannot start building until you've picked an archetype and variation.** This structurally prevents the "every LuxWeb site looks the same" problem by forcing creative range across projects. It also surfaces the "why" behind each design direction so you develop taste over time.
+The most important features of this skill are two gates that prevent generic output:
+
+### Gate 1: Archetype Selection (Marketing)
+Claude Code cannot start building marketing surfaces until you've picked an archetype + variation. This forces creative range — no more defaults, no more house style repeating across projects. Defined in `LUXWEB.md` and `ARCHETYPES.md`.
+
+### Gate 2: App Layout Selection (Admin/Dashboard)
+Claude Code cannot start building dashboards, admin panels, settings pages, or auth flows until you've picked a structural layout for each surface. This solves the "every dashboard ends up as sidebar + 3 stat cards + 2-column grid" problem. Defined in `APP.md`.
+
+Together, these gates structurally prevent the two ways AI-built sites become generic: same visual treatment OR same structural skeleton. With both gates active, every project starts from a distinct creative AND structural direction.
 
 ## Usage
 

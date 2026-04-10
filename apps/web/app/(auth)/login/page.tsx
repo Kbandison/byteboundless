@@ -36,12 +36,22 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-md">
+      {/* Mobile-only brand header (left panel is hidden on mobile) */}
+      <div className="lg:hidden mb-8 text-center">
+        <Link
+          href="/"
+          className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight text-[var(--color-text-primary)]"
+        >
+          ByteBoundless
+        </Link>
+      </div>
+
       <div className="bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl p-8 shadow-sm">
         {!submitted ? (
           <>
             <div className="mb-8">
               <h1 className="text-2xl font-bold tracking-tight font-[family-name:var(--font-display)]">
-                Log in
+                Welcome back
               </h1>
               <p className="mt-2 text-sm text-[var(--color-text-secondary)] font-[family-name:var(--font-body)]">
                 Enter your email to receive a magic link.

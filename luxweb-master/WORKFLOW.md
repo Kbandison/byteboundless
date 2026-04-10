@@ -273,11 +273,24 @@ This phase is where the other LuxWeb modules do the heavy lifting:
 
 1. **Scaffold** using `STACK.md` — create project, install deps, set up directory structure, create base files.
 2. **Apply archetype spec** — inject fonts from the variation into `globals.css`, apply color palette as CSS variables, set dial-driven spacing/layout defaults.
-3. **Build sections** using `COMPONENTS.md` — one section at a time, following the content inventory from Phase 3. Every section uses the patterns from that module, customized to the archetype.
-4. **Add motion** using `MOTION.md` — apply animation patterns scaled to the MOTION_INTENSITY dial from the variation.
-5. **Add 3D** using `3D.md` if the archetype/project requires it — usually for high DESIGN_VARIANCE or specific archetypes like Retro-Futuristic / Maximalist.
-6. **Wire assets** — use the image files from Phase 4, matched by Image ID.
-7. **Create 404 and essential pages** — custom 404, privacy, terms (even placeholder versions).
+3. **Build marketing sections** using `COMPONENTS.md` — one section at a time, following the content inventory from Phase 3. Every section uses the patterns from that module, customized to the archetype.
+4. **Build app surfaces** using `APP.md` — IF the project includes any non-marketing surfaces (dashboard, admin, CRM, CMS, settings, auth, data displays), Claude Code MUST run the App Layout Selection Gate from `APP.md` before building them. Present layout options for each surface type the project needs (dashboard, settings, auth, etc.) and wait for user selection. Never default to "Classic Shell" or "Centered Card."
+5. **Add motion** using `MOTION.md` — apply animation patterns scaled to the MOTION_INTENSITY dial from the variation. Marketing surfaces get cinematic motion. App surfaces get functional motion (drawer slides, skeleton pulses, dropdown reveals).
+6. **Add 3D** using `3D.md` if the archetype/project requires it — usually for high DESIGN_VARIANCE or specific archetypes like Retro-Futuristic / Maximalist.
+7. **Wire assets** — use the image files from Phase 4, matched by Image ID.
+8. **Create 404 and essential pages** — custom 404, privacy, terms (even placeholder versions).
+
+### App Surface Build Order
+
+If the project has app surfaces, build in this order AFTER the marketing pages are complete:
+
+1. **Auth surfaces first** (login, signup, forgot password) — these are the entry points
+2. **App shell** (sidebar/topbar layout chosen from APP.md)
+3. **Dashboard** (using the layout chosen from APP.md)
+4. **Primary data views** (tables, lists, kanban, etc.)
+5. **Detail/record views**
+6. **Settings** (using the layout chosen from APP.md)
+7. **Profile and account management**
 
 ### Build order
 

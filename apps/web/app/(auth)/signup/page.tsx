@@ -36,6 +36,16 @@ export default function SignupPage() {
 
   return (
     <div className="w-full max-w-md">
+      {/* Mobile-only brand header (left panel is hidden on mobile) */}
+      <div className="lg:hidden mb-8 text-center">
+        <Link
+          href="/"
+          className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight text-[var(--color-text-primary)]"
+        >
+          ByteBoundless
+        </Link>
+      </div>
+
       <div className="bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl p-8 shadow-sm">
         {!submitted ? (
           <>

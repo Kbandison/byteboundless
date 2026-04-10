@@ -54,6 +54,24 @@ Without forced archetype selection, Claude Code defaults to LuxWeb's baseline va
 
 ---
 
+## 🚨 MANDATORY: App Layout Selection Gate
+
+**A second gate exists for non-marketing surfaces.** Before building any dashboard, admin panel, CRM, CMS, settings page, auth flow, or data display surface, Claude Code MUST read `APP.md` and execute the App Layout Selection Gate defined there.
+
+### When this gate applies:
+- Building a dashboard, admin shell, CRM, or CMS interior
+- Building login, signup, forgot password, or any auth surface
+- Building settings, profile, or account pages
+- Building data display surfaces (tables, lists, record views)
+
+### Why this gate exists separately:
+
+Even with a locked archetype, app surfaces will default to identical structural skeletons (sidebar + 3 stat cards + 2-column grid + table) unless the layout itself is consciously chosen. The archetype gate handles the visual direction; the app gate handles the structural direction. **Both are required for non-marketing surfaces.**
+
+See `APP.md` for the full layout library (6 dashboard layouts, 5 settings layouts, 5 auth layouts, 5 data display patterns) and protocol.
+
+---
+
 ## Tunable Dials
 
 Adjust these per project. Default values are shown. Override them in your prompt (e.g., "build this at variance 3, motion 9, density 2").
@@ -279,12 +297,13 @@ Read these files based on the task:
 |------|-----------|
 | `WORKFLOW.md` | **ALWAYS read at the start of any new project.** Defines the 7-phase build process and controls the order of all other modules. |
 | `ARCHETYPES.md` | **ALWAYS read before any new build** (enforced by Phase 2 of WORKFLOW.md). Contains the 8 archetypes and 24 variations. |
-| `STACK.md` | Phase 5 of the workflow. Setup, deps, directory structure, base files. |
+| `APP.md` | **ALWAYS read before building any non-marketing surface** (admin, dashboard, CRM, CMS, auth, settings). Contains the mandatory layout selection gate and modern layout library. |
+| `STACK.md` | Phase 5 of the workflow. Setup, deps, directory structure, base files, CSS pitfalls. |
 | `MOTION.md` | Phase 5 of the workflow. Animation patterns. |
-| `COMPONENTS.md` | Phase 5 of the workflow. UI section patterns. |
+| `COMPONENTS.md` | Phase 5 of the workflow. UI section patterns for marketing surfaces. |
 | `3D.md` | Phase 5 of the workflow. Only when the project requires WebGL. |
 
-Always read `LUXWEB.md` (this file) and `WORKFLOW.md` at the start of any new project. Read `ARCHETYPES.md` before Phase 2 begins. Read other modules as the workflow phases reach them.
+Always read `LUXWEB.md` (this file) and `WORKFLOW.md` at the start of any new project. Read `ARCHETYPES.md` before Phase 2 begins. Read `APP.md` whenever building non-marketing surfaces. Read other modules as the workflow phases reach them.
 
 ---
 

@@ -407,36 +407,45 @@ const QUICK_PLAYS = [
 
 export default function NewSearchPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center px-6 pt-16 pb-20 bg-[var(--color-bg-primary)]">
-      <div className="w-full max-w-xl space-y-2 mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-[var(--color-text-primary)] font-[family-name:var(--font-display)]">
+    <div className="mx-auto max-w-7xl px-6 md:px-8 py-8 md:py-12">
+      {/* Header — matching dashboard design language */}
+      <div className="mb-10">
+        <p className="text-xs uppercase tracking-[0.15em] text-[var(--color-accent)] font-medium font-[family-name:var(--font-mono)] mb-2">
           New Search
+        </p>
+        <h1 className="font-[family-name:var(--font-display)] text-4xl md:text-5xl font-bold tracking-tight">
+          Find your next client
         </h1>
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Find businesses that need a better website.
+        <p className="text-[var(--color-text-secondary)] mt-2">
+          Search Google Maps or paste URLs to discover businesses that need better websites.
         </p>
       </div>
 
-      {/* Quick Plays */}
-      <div className="w-full max-w-xl mb-6">
-        <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-2">Quick picks</p>
-        <div className="flex flex-wrap gap-2">
-          {QUICK_PLAYS.map((play) => (
-            <a
-              key={play.query}
-              href={`?query=${encodeURIComponent(play.query)}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-xs font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/30 hover:text-[var(--color-accent)] transition-all duration-200"
-            >
-              <span>{play.emoji}</span>
-              {play.label}
-            </a>
-          ))}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-10">
+        {/* Left: Form */}
+        <div>
+          <Suspense fallback={<FormSkeleton />}>
+            <NewSearchForm />
+          </Suspense>
+        </div>
+
+        {/* Right: Quick Plays sidebar */}
+        <div className="lg:sticky lg:top-24 lg:self-start">
+          <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-3">Quick picks</p>
+          <div className="flex flex-wrap lg:flex-col gap-2">
+            {QUICK_PLAYS.map((play) => (
+              <a
+                key={play.query}
+                href={`?query=${encodeURIComponent(play.query)}`}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-sm font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/30 hover:text-[var(--color-accent)] transition-all duration-200"
+              >
+                <span>{play.emoji}</span>
+                {play.label}
+              </a>
+            ))}
+          </div>
         </div>
       </div>
-
-      <Suspense fallback={<FormSkeleton />}>
-        <NewSearchForm />
-      </Suspense>
     </div>
   );
 }

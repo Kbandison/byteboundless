@@ -109,12 +109,12 @@ export default async function DashboardPage() {
               Score 80+ — ready to pitch
             </p>
           </div>
-          {hotLeadCount > 0 && (
+          {hotLeadCount > 0 && recentJobs.find((j) => j.status === "completed") && (
             <Link
-              href="/search"
+              href={`/search/${recentJobs.find((j) => j.status === "completed")!.id}/results`}
               className="inline-flex items-center gap-2 text-sm text-[var(--color-accent)] font-medium hover:underline mt-4"
             >
-              View hot leads <ArrowRight className="w-4 h-4" />
+              View latest results <ArrowRight className="w-4 h-4" />
             </Link>
           )}
         </div>

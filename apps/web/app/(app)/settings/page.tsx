@@ -7,12 +7,13 @@ import {
   CreditCard,
   AlertTriangle,
   Loader2,
-  Check,
   ArrowRight,
   LogOut,
 } from "lucide-react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
+import { SettingsSkeleton } from "@/components/ui/skeletons";
 import { cn } from "@/lib/utils";
 
 const SERVICE_OPTIONS = [
@@ -67,7 +68,6 @@ export default function SettingsPage() {
   const [searchesLimit, setSearchesLimit] = useState(3);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userId, setUserId] = useState("");
@@ -140,8 +140,7 @@ export default function SettingsPage() {
       } as never)
       .eq("id", userId);
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    toast.success("Profile saved");
   };
 
   const handleSignOut = async () => {
@@ -164,13 +163,7 @@ export default function SettingsPage() {
   };
 
   /* ── Loading state ── */
-  if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto px-6 md:px-8 py-20 flex flex-col items-center">
-        <Loader2 className="w-8 h-8 text-[var(--color-accent)] animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <SettingsSkeleton />;
 
   /* ── Render ── */
   return (
@@ -388,10 +381,6 @@ export default function SettingsPage() {
                 >
                   {saving ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : saved ? (
-                    <>
-                      <Check className="w-4 h-4" /> Saved
-                    </>
                   ) : (
                     "Save Profile"
                   )}
@@ -507,10 +496,10 @@ export default function SettingsPage() {
                         if (data.url) {
                           window.location.href = data.url;
                         } else {
-                          alert(data.error || "Failed to start checkout");
+                          toast.error(data.error || "Failed to start checkout");
                         }
                       } catch {
-                        alert("Network error");
+                        toast.error("Network error");
                       }
                       setBuyingCredits(false);
                     }}

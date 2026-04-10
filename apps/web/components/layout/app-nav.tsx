@@ -20,6 +20,8 @@ import { APP_NAV_LINKS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "@/hooks/use-theme";
+import { CommandPalette } from "@/components/ui/command-palette";
+import { UserMenu } from "@/components/ui/user-menu";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -112,22 +114,13 @@ export function AppNav() {
             {mounted && (
               <button
                 onClick={() => setTheme(isDark ? "light" : "dark")}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors duration-200"
+                className="flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors duration-200"
                 aria-label="Toggle dark mode"
               >
                 {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
             )}
-            <button
-              onClick={async () => {
-                const supabase = createClient();
-                await supabase.auth.signOut();
-                window.location.href = "/";
-              }}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors duration-200"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            <UserMenu />
           </div>
 
           {/* Mobile Toggle */}
@@ -203,6 +196,9 @@ export function AppNav() {
           </div>
         </div>
       )}
+
+      {/* Command Palette — global */}
+      <CommandPalette />
     </>
   );
 }

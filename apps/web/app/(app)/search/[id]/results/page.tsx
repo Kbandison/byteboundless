@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { usePlan, isPaidPlan } from "@/hooks/use-plan";
 import { TECH_STACK_COLORS, getScoreColor } from "@/lib/constants";
+import { ResultsSkeleton } from "@/components/ui/skeletons";
 import { createClient } from "@/lib/supabase/client";
 
 interface BusinessRow {
@@ -281,12 +282,7 @@ export default function ResultsPage({
   }));
 
   if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-6 md:px-8 py-20 flex flex-col items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[var(--color-accent)] animate-spin mb-4" />
-        <p className="text-sm text-[var(--color-text-secondary)]">Loading results...</p>
-      </div>
-    );
+    return (<ResultsSkeleton />);
   }
 
   return (

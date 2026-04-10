@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter_Tight } from "next/font/google";
 import { SmoothScrollProvider } from "@/components/layout/smooth-scroll-provider";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -46,6 +47,18 @@ export default function RootLayout({
         <SmoothScrollProvider>
           {children}
         </SmoothScrollProvider>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: {
+              background: "var(--color-bg-tertiary)",
+              border: "1px solid var(--color-border)",
+              color: "var(--color-text-primary)",
+              fontFamily: "var(--font-body), system-ui, sans-serif",
+              fontSize: "13px",
+            },
+          }}
+        />
       </body>
     </html>
   );

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Bookmark, Plus, Loader2, Trash2, Lock } from "lucide-react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { usePlan, isPaidPlan } from "@/hooks/use-plan";
 import { UpgradeGate } from "@/components/ui/upgrade-gate";
@@ -50,11 +51,16 @@ export default function SavedListsPage() {
   async function handleCreate() {
     if (!newName.trim()) return;
     setCreating(true);
-    await fetch("/api/lists", {
+    const res = await fetch("/api/lists", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newName.trim() }),
     });
+    if (res.ok) {
+      toast.success(`Created "${newName.trim()}"`);
+    } else {
+      toast.error("Failed to create list");
+    }
     setNewName("");
     setShowCreate(false);
     setCreating(false);
@@ -63,8 +69,13 @@ export default function SavedListsPage() {
 
   async function handleDelete(listId: string) {
     const supabase = createClient();
-    await supabase.from("saved_lists").delete().eq("id", listId);
+    const { error } = await supabase.from("saved_lists").delete().eq("id", listId);
+    if (error) {
+      toast.error("Failed to delete list");
+      return;
+    }
     setLists((prev) => prev.filter((l) => l.id !== listId));
+    toast.success("List deleted");
   }
 
   if (loading) {

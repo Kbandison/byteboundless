@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import {
   User,
   CreditCard,
@@ -454,16 +453,10 @@ export default function SettingsPage() {
                       </p>
                     </div>
                     {plan !== p.key && (
-                      <Link
-                        href="/pricing"
-                        className="text-xs text-[var(--color-accent)] font-medium hover:underline flex items-center gap-1"
-                      >
-                        {PLANS.findIndex((x) => x.key === p.key) >
-                        PLANS.findIndex((x) => x.key === plan)
-                          ? "Upgrade"
-                          : "Downgrade"}
-                        <ArrowRight className="w-3 h-3" />
-                      </Link>
+                      <PlanChangeButton
+                        targetPlan={p.key as "free" | "pro" | "agency"}
+                        currentPlan={plan as "free" | "pro" | "agency"}
+                      />
                     )}
                   </div>
                 ))}
@@ -572,5 +565,68 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Plan change button (handles upgrade / downgrade / cancel) ───
+function PlanChangeButton({
+  targetPlan,
+  currentPlan,
+}: {
+  targetPlan: "free" | "pro" | "agency";
+  currentPlan: "free" | "pro" | "agency";
+}) {
+  const [loading, setLoading] = useState(false);
+  const tierOrder = { free: 0, pro: 1, agency: 2 } as const;
+  const isUpgrade = tierOrder[targetPlan] > tierOrder[currentPlan];
+
+  async function handleClick() {
+    // Downgrade / cancel: users have to do this from the Stripe portal
+    // (or contact support). For now we point them at the docs/pricing.
+    if (!isUpgrade) {
+      toast.info("To downgrade or cancel, please contact support or use the billing portal.");
+      return;
+    }
+
+    // Upgrade: create a subscription checkout session
+    if (targetPlan === "free") return; // shouldn't happen — free isn't an upgrade
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/billing/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: targetPlan }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to start checkout");
+        return;
+      }
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch {
+      toast.error("Failed to start checkout");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className="text-xs text-[var(--color-accent)] font-medium hover:underline flex items-center gap-1 disabled:opacity-50"
+    >
+      {loading ? (
+        <Loader2 className="w-3 h-3 animate-spin" />
+      ) : isUpgrade ? (
+        "Upgrade"
+      ) : (
+        "Downgrade"
+      )}
+      {!loading && <ArrowRight className="w-3 h-3" />}
+    </button>
   );
 }

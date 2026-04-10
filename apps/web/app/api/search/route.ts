@@ -26,7 +26,41 @@ export async function POST(request: Request) {
     );
   }
 
-  // Check search limits
+  // Atomic quota check + consumption. The Postgres function locks the
+  // profile row, resets searches_used if the 30-day window has elapsed,
+  // and either increments the counter or deducts an overage credit —
+  // all in one transaction. Prevents the read-then-update race and
+  // self-heals stuck counters from users who never had a reset before.
+  const { data: quotaResult, error: quotaError } = await supabase.rpc(
+    "consume_search_quota" as never,
+    { p_user_id: user.id } as never
+  );
+
+  if (quotaError) {
+    return NextResponse.json({ error: quotaError.message }, { status: 500 });
+  }
+
+  const status = quotaResult as unknown as string;
+  if (status === "free_limit") {
+    return NextResponse.json(
+      { error: "Search limit reached. Upgrade to Pro for 50 searches/month." },
+      { status: 403 }
+    );
+  }
+  if (status === "paid_limit") {
+    return NextResponse.json(
+      { error: "Monthly search limit reached. Purchase extra results from Settings to continue." },
+      { status: 403 }
+    );
+  }
+  if (status === "not_found") {
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
+  // status is 'ok' or 'ok_overage' — quota was consumed, proceed
+
+  // Read the profile so we can clamp maxResults to the plan's cap.
+  // The quota was already consumed atomically above, so this read is
+  // just for the max-results clamp, not for quota enforcement.
   const { data: profileRaw } = await supabase
     .from("profiles")
     .select("*")
@@ -34,32 +68,8 @@ export async function POST(request: Request) {
     .single();
 
   const profile = profileRaw as Profile | null;
-
-  const planSearchLimits: Record<string, number> = { free: 3, pro: 50, agency: 200 };
-  const searchLimit = planSearchLimits[profile?.plan ?? "free"] ?? 3;
-
-  const overageCredits = (profile as Record<string, unknown>)?.overage_credits as number ?? 0;
-
-  if (profile && profile.searches_used >= searchLimit) {
-    if (profile.plan === "free") {
-      return NextResponse.json(
-        { error: "Search limit reached. Upgrade to Pro for 50 searches/month." },
-        { status: 403 }
-      );
-    }
-    // Paid users can use overage credits
-    if (overageCredits <= 0) {
-      return NextResponse.json(
-        { error: `Monthly search limit reached (${searchLimit}). Purchase extra results from Settings to continue.` },
-        { status: 403 }
-      );
-    }
-    // Deduct overage credits (1 search = deducts from overage pool)
-    await supabase
-      .from("profiles")
-      .update({ overage_credits: overageCredits - 1 } as never)
-      .eq("id", user.id);
-  }
+  const overageCredits =
+    ((profile as Record<string, unknown>)?.overage_credits as number) ?? 0;
 
   // Enforce plan-based max results limit (overage credits extend the max)
   const planMaxResults: Record<string, number> = { free: 50, pro: 500, agency: 1000 };
@@ -87,14 +97,5 @@ export async function POST(request: Request) {
   }
 
   const job = jobRaw as ScrapeJob;
-
-  // Increment search count
-  if (profile) {
-    await supabase
-      .from("profiles")
-      .update({ searches_used: profile.searches_used + 1 } as never)
-      .eq("id", user.id);
-  }
-
   return NextResponse.json({ job });
 }

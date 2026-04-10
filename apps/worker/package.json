@@ -8,12 +8,13 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@sentry/node": "^10.48.0",
     "@supabase/supabase-js": "^2",
     "playwright": "1.52.0"
   },
   "devDependencies": {
+    "@types/node": "^20",
     "tsx": "^4",
-    "typescript": "^5",
-    "@types/node": "^20"
+    "typescript": "^5"
   }
 }

@@ -19,12 +19,41 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json();
-  const { userId, ...updates } = body;
+  const { userId, action, days, ...updates } = body as {
+    userId?: string;
+    action?: "grant_beta" | "revoke_beta";
+    days?: number;
+  };
 
   if (!userId) {
     return NextResponse.json({ error: "userId is required" }, { status: 400 });
   }
 
+  // Beta-access actions go through the RPC so the check/mutation is
+  // atomic and the admin guard lives in the database (belt + suspenders
+  // alongside the route-level isAdmin check).
+  if (action === "grant_beta") {
+    const { error } = await supabase.rpc("grant_beta_access" as never, {
+      p_user_id: userId,
+      p_days: days ?? 30,
+    } as never);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "revoke_beta") {
+    const { error } = await supabase.rpc("revoke_beta_access" as never, {
+      p_user_id: userId,
+    } as never);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true });
+  }
+
+  // Fall-through: raw profile update for role/plan edits from the admin UI
   const { error } = await supabase
     .from("profiles")
     .update(updates as never)

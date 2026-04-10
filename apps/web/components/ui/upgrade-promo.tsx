@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { Sparkles, ArrowUpRight, X } from "lucide-react";
+import { Sparkles, ArrowUpRight, X, Crown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface PromoConfig {
@@ -49,8 +49,21 @@ interface UpgradePromoProps {
   collapsed?: boolean;
 }
 
+interface ProfileState {
+  plan: "free" | "pro" | "agency";
+  role: "user" | "admin";
+  plan_expires_at: string | null;
+}
+
+function daysRemaining(iso: string | null): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return 0;
+  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+}
+
 export function UpgradePromo({ collapsed = false }: UpgradePromoProps) {
-  const [plan, setPlan] = useState<"free" | "pro" | "agency" | null>(null);
+  const [profile, setProfile] = useState<ProfileState | null>(null);
   const dismissed = useSyncExternalStore(subscribeDismissed, getDismissed, getDismissedSSR);
 
   useEffect(() => {
@@ -58,18 +71,83 @@ export function UpgradePromo({ collapsed = false }: UpgradePromoProps) {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
-      const p = (data as { plan: "free" | "pro" | "agency" } | null)?.plan;
-      if (p) setPlan(p);
+      const { data } = await supabase
+        .from("profiles")
+        .select("plan, role, plan_expires_at")
+        .eq("id", user.id)
+        .single();
+      if (data) setProfile(data as ProfileState);
     })();
   }, []);
 
-  // Hide entirely for agency users (top tier) or while loading
-  if (plan === "agency" || plan === null || dismissed) return null;
+  // Loading
+  if (profile === null) return null;
 
-  const promo = PROMOS[plan];
+  // ------- Beta membership badge (active beta / trial user) -------
+  const betaDays = daysRemaining(profile.plan_expires_at);
+  if (betaDays !== null && betaDays > 0) {
+    if (collapsed) {
+      return (
+        <div
+          className="flex items-center justify-center w-full p-2 rounded-lg bg-amber-500/10 text-amber-600"
+          title={`Beta access — ${betaDays}d left`}
+          aria-label={`Beta access ${betaDays} days remaining`}
+        >
+          <Crown className="w-4 h-4" />
+        </div>
+      );
+    }
+    return (
+      <div className="rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-[var(--color-bg-tertiary)] p-3">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <Crown className="w-3.5 h-3.5 text-amber-600" />
+          <span className="text-[10px] uppercase tracking-wider text-amber-600 font-bold">
+            Beta access
+          </span>
+        </div>
+        <h4 className="text-xs font-semibold text-[var(--color-text-primary)] mb-1 leading-snug">
+          Full access enabled
+        </h4>
+        <p className="text-[11px] text-[var(--color-text-secondary)] leading-snug">
+          {betaDays} day{betaDays === 1 ? "" : "s"} remaining on your beta membership.
+        </p>
+      </div>
+    );
+  }
 
-  // Collapsed sidebar variant: just an icon button
+  // ------- Admin badge (permanent unlimited) -------
+  if (profile.role === "admin") {
+    if (collapsed) {
+      return (
+        <div
+          className="flex items-center justify-center w-full p-2 rounded-lg bg-red-500/10 text-red-600"
+          title="Admin access"
+          aria-label="Admin access"
+        >
+          <Crown className="w-4 h-4" />
+        </div>
+      );
+    }
+    return (
+      <div className="rounded-xl border border-red-500/20 bg-gradient-to-br from-red-500/5 to-[var(--color-bg-tertiary)] p-3">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <Crown className="w-3.5 h-3.5 text-red-600" />
+          <span className="text-[10px] uppercase tracking-wider text-red-600 font-bold">
+            Admin
+          </span>
+        </div>
+        <p className="text-[11px] text-[var(--color-text-secondary)] leading-snug">
+          Unlimited access to everything.
+        </p>
+      </div>
+    );
+  }
+
+  // ------- Standard upgrade promo (free or pro, not dismissed) -------
+  if (profile.plan === "agency" || dismissed) return null;
+
+  const promo = PROMOS[profile.plan];
+
   if (collapsed) {
     return (
       <Link

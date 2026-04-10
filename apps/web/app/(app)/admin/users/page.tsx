@@ -3,7 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@byteboundless/supabase";
 import { UserActions } from "./actions";
 
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+type Profile = Database["public"]["Tables"]["profiles"]["Row"] & {
+  plan_expires_at?: string | null;
+};
+
+function daysRemaining(expiresAt: string | null | undefined): number | null {
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return 0;
+  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+}
 
 export default async function AdminUsersPage() {
   await requireAdmin();
@@ -29,7 +38,7 @@ export default async function AdminUsersPage() {
 
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] overflow-hidden">
         {/* Header */}
-        <div className="hidden md:grid grid-cols-[1fr_100px_80px_100px_80px_120px] gap-3 px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]/30 text-[11px] uppercase tracking-wider text-[var(--color-text-dim)] font-medium">
+        <div className="hidden md:grid grid-cols-[1fr_90px_90px_100px_80px_260px] gap-3 px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]/30 text-[11px] uppercase tracking-wider text-[var(--color-text-dim)] font-medium">
           <span>Email</span>
           <span>Role</span>
           <span>Plan</span>
@@ -40,15 +49,18 @@ export default async function AdminUsersPage() {
 
         {/* Rows */}
         <div className="divide-y divide-[var(--color-border)]/50">
-          {users.map((user) => (
+          {users.map((user) => {
+            const beta = daysRemaining(user.plan_expires_at);
+            return (
             <div
               key={user.id}
-              className="grid grid-cols-1 md:grid-cols-[1fr_100px_80px_100px_80px_120px] gap-3 px-5 py-4 items-center"
+              className="grid grid-cols-1 md:grid-cols-[1fr_90px_90px_100px_80px_260px] gap-3 px-5 py-4 items-center"
             >
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">{user.email}</p>
                 <p className="text-xs text-[var(--color-text-dim)] font-[family-name:var(--font-mono)] md:hidden">
                   {user.role} &middot; {user.plan}
+                  {beta !== null && beta > 0 && ` · beta ${beta}d`}
                 </p>
               </div>
 
@@ -62,17 +74,24 @@ export default async function AdminUsersPage() {
                 {user.role}
               </span>
 
-              <span
-                className={`hidden md:inline-flex text-xs px-2 py-0.5 rounded font-medium w-fit ${
-                  user.plan === "agency"
-                    ? "bg-violet-500/15 text-violet-700"
-                    : user.plan === "pro"
-                      ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
-                      : "bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]"
-                }`}
-              >
-                {user.plan}
-              </span>
+              <div className="hidden md:flex flex-col gap-0.5">
+                <span
+                  className={`inline-flex text-xs px-2 py-0.5 rounded font-medium w-fit ${
+                    user.plan === "agency"
+                      ? "bg-violet-500/15 text-violet-700"
+                      : user.plan === "pro"
+                        ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                        : "bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]"
+                  }`}
+                >
+                  {user.plan}
+                </span>
+                {beta !== null && beta > 0 && (
+                  <span className="text-[10px] font-[family-name:var(--font-mono)] text-amber-600">
+                    beta {beta}d left
+                  </span>
+                )}
+              </div>
 
               <span className="hidden md:inline text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">
                 {user.searches_used}/{user.searches_limit === 999999 ? "∞" : user.searches_limit}
@@ -82,9 +101,15 @@ export default async function AdminUsersPage() {
                 {new Date(user.created_at).toLocaleDateString()}
               </span>
 
-              <UserActions userId={user.id} currentPlan={user.plan} currentRole={user.role} />
+              <UserActions
+                userId={user.id}
+                currentPlan={user.plan}
+                currentRole={user.role}
+                planExpiresAt={user.plan_expires_at ?? null}
+              />
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

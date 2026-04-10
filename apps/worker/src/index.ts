@@ -1,11 +1,28 @@
 // ByteBoundless Worker — polls Supabase for pending scrape jobs and runs them
 
+// IMPORTANT: Sentry init must come first, before any other imports that
+// might throw on load. Its default integrations install Node's uncaught
+// exception / unhandled rejection handlers, and anything imported before
+// this line won't be covered.
+import { Sentry } from "./instrument.js";
+
 import { createClient } from "@supabase/supabase-js";
 import { runScrape, runUrlEnrich, type RawBusiness } from "./scraper.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const POLL_INTERVAL_MS = 5000;
+
+// Stale-job thresholds.
+// - RESET_STALE_AFTER_MS: on worker startup, any 'running' job older than
+//   this with no recent heartbeat is assumed to be from a crashed prior
+//   worker and gets reset to 'pending' so it can be re-claimed.
+// - FAIL_STALE_AFTER_MS: during normal polling, any 'running' job whose
+//   heartbeat is this old is assumed to be silently hung and gets marked
+//   'failed'. Must be > RESET_STALE_AFTER_MS so we don't fight ourselves.
+const RESET_STALE_AFTER_MS = 10 * 60 * 1000; // 10 minutes
+const FAIL_STALE_AFTER_MS = 15 * 60 * 1000; // 15 minutes
+const STALE_CLEANUP_INTERVAL_MS = 60 * 1000; // check every minute
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars");
@@ -29,7 +46,11 @@ async function claimJob() {
   const job = jobs[0];
   const { data: claimed, error } = await supabase
     .from("scrape_jobs")
-    .update({ status: "running", phase: "collecting" } as never)
+    .update({
+      status: "running",
+      phase: "collecting",
+      heartbeat_at: new Date().toISOString(),
+    } as never)
     .eq("id", job.id)
     .eq("status", "pending")
     .select("*")
@@ -37,6 +58,60 @@ async function claimJob() {
 
   if (error || !claimed) return null;
   return claimed as Record<string, unknown>;
+}
+
+// On worker startup: recover jobs left in 'running' from a previous
+// instance that crashed. They get reset to 'pending' so we pick them up.
+async function recoverOrphanedJobs() {
+  const cutoff = new Date(Date.now() - RESET_STALE_AFTER_MS).toISOString();
+  const { data, error } = await supabase
+    .from("scrape_jobs")
+    .update({ status: "pending", phase: null, heartbeat_at: null } as never)
+    .eq("status", "running")
+    .or(`heartbeat_at.is.null,heartbeat_at.lt.${cutoff}`)
+    .select("id");
+
+  if (error) {
+    console.error("[Worker] Failed to recover orphaned jobs:", error);
+    Sentry.captureException(error, { tags: { context: "recover_orphaned_jobs" } });
+    return;
+  }
+  if (data && data.length > 0) {
+    console.log(`[Worker] Recovered ${data.length} orphaned running job(s) from previous instance`);
+  }
+}
+
+// Background sweep: any 'running' job with a heartbeat older than the
+// fail threshold is assumed silently hung and gets marked 'failed'.
+// Different from recovery because (a) we use a longer threshold and
+// (b) we mark them failed instead of re-queuing (if they're hanging
+// now, re-queuing would likely just hang again).
+async function failStaleJobs() {
+  const cutoff = new Date(Date.now() - FAIL_STALE_AFTER_MS).toISOString();
+  const { data, error } = await supabase
+    .from("scrape_jobs")
+    .update({
+      status: "failed",
+      error: "Job timed out — no progress for 15 minutes",
+    } as never)
+    .eq("status", "running")
+    .lt("heartbeat_at", cutoff)
+    .select("id");
+
+  if (error) {
+    console.error("[Worker] Failed to sweep stale jobs:", error);
+    Sentry.captureException(error, { tags: { context: "fail_stale_jobs" } });
+    return;
+  }
+  if (data && data.length > 0) {
+    console.log(`[Worker] Marked ${data.length} stale running job(s) as failed`);
+    // Tell Sentry about the stuck jobs too — not an exception, but worth
+    // tracking so repeated occurrences become visible as a pattern.
+    Sentry.captureMessage(
+      `Marked ${data.length} stale job(s) as failed`,
+      { level: "warning", tags: { context: "stale_job_sweep" } }
+    );
+  }
 }
 
 // Throttled progress updater — avoids hammering Supabase with rapid updates
@@ -51,7 +126,12 @@ async function flushProgress() {
   lastProgressUpdate = Date.now();
   await supabase
     .from("scrape_jobs")
-    .update({ phase, progress_current: current, progress_total: total } as never)
+    .update({
+      phase,
+      progress_current: current,
+      progress_total: total,
+      heartbeat_at: new Date().toISOString(),
+    } as never)
     .eq("id", jobId);
 }
 
@@ -77,11 +157,16 @@ async function forceFlush(jobId: string, phase: string, current: number, total: 
   lastProgressUpdate = Date.now();
   await supabase
     .from("scrape_jobs")
-    .update({ phase, progress_current: current, progress_total: total } as never)
+    .update({
+      phase,
+      progress_current: current,
+      progress_total: total,
+      heartbeat_at: new Date().toISOString(),
+    } as never)
     .eq("id", jobId);
 }
 
-async function writeBusinessBatch(jobId: string, businesses: RawBusiness[]) {
+async function writeBusinessBatch(jobId: string, businesses: RawBusiness[]): Promise<void> {
   const rows = businesses.map((biz) => {
     const enrichment = biz.enrichment || null;
     const leadReasons = (biz.leadReasons || []).map((r) =>
@@ -103,10 +188,17 @@ async function writeBusinessBatch(jobId: string, businesses: RawBusiness[]) {
     };
   });
 
-  // Insert in batches of 25
+  // Insert in batches of 25. Throw on error so the outer processJob catch
+  // marks the job failed — we'd rather surface a DB problem than silently
+  // return a partial result set.
   for (let i = 0; i < rows.length; i += 25) {
     const batch = rows.slice(i, i + 25);
-    await supabase.from("businesses").insert(batch as never);
+    const { error } = await supabase.from("businesses").insert(batch as never);
+    if (error) {
+      throw new Error(
+        `Failed to write business batch (rows ${i}-${i + batch.length}): ${error.message}`
+      );
+    }
   }
 }
 
@@ -118,6 +210,7 @@ async function completeJob(jobId: string) {
       status: "completed",
       phase: "done",
       completed_at: new Date().toISOString(),
+      heartbeat_at: new Date().toISOString(),
     } as never)
     .eq("id", jobId);
 }
@@ -183,12 +276,32 @@ async function processJob(job: Record<string, unknown>) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[Worker] Job ${jobId} failed:`, message);
+    Sentry.captureException(err, {
+      tags: { context: "process_job", job_id: jobId },
+      extra: {
+        query: job.query,
+        location: job.location,
+        options: job.options,
+      },
+    });
     await failJob(jobId, message);
   }
 }
 
 async function poll() {
   console.log("[Worker] ByteBoundless worker started. Polling for jobs...");
+
+  // Recover any orphaned 'running' jobs from a previous crashed instance
+  await recoverOrphanedJobs();
+
+  // Periodic stale-job sweep runs independent of the main loop so it
+  // still fires even while processJob is busy on a long-running job.
+  setInterval(() => {
+    failStaleJobs().catch((e) => {
+      console.error("[Worker] Stale sweep error:", e);
+      Sentry.captureException(e, { tags: { context: "stale_sweep_interval" } });
+    });
+  }, STALE_CLEANUP_INTERVAL_MS);
 
   while (true) {
     try {
@@ -198,6 +311,7 @@ async function poll() {
       }
     } catch (err) {
       console.error("[Worker] Poll error:", err);
+      Sentry.captureException(err, { tags: { context: "poll_loop" } });
     }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }

@@ -16,7 +16,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { businessId } = await request.json();
+  const body = await request.json();
+  const { businessId, regenerate } = body as { businessId?: string; regenerate?: boolean };
 
   if (!businessId) {
     return NextResponse.json(
@@ -25,10 +26,54 @@ export async function POST(request: Request) {
     );
   }
 
-  // Get user profile for pitch personalization + plan check
+  // Cache hit: return existing pitch without consuming quota, unless the
+  // user explicitly asked to regenerate.
+  const { data: existingRaw } = await supabase
+    .from("lead_pitches")
+    .select("*")
+    .eq("business_id", businessId)
+    .single();
+  const existing = existingRaw as LeadPitch | null;
+
+  if (existing && !regenerate) {
+    return NextResponse.json({ pitch: existing });
+  }
+
+  // Atomic pitch quota check + consumption. The Postgres function locks
+  // the profile row, resets pitches_used if the 30-day window has elapsed,
+  // and increments the counter if under the limit — all in one transaction.
+  const { data: quotaResult, error: quotaError } = await supabase.rpc(
+    "consume_pitch_quota" as never,
+    { p_user_id: user.id } as never
+  );
+
+  if (quotaError) {
+    return NextResponse.json({ error: quotaError.message }, { status: 500 });
+  }
+
+  const status = quotaResult as unknown as string;
+  if (status === "free_limit") {
+    return NextResponse.json(
+      { error: "Monthly AI pitch limit reached (10). Upgrade to Pro for 200 pitches/month." },
+      { status: 403 }
+    );
+  }
+  if (status === "paid_limit") {
+    return NextResponse.json(
+      { error: "Monthly AI pitch limit reached. Resets in 30 days." },
+      { status: 403 }
+    );
+  }
+  if (status === "not_found") {
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
+  // status === 'ok' — quota consumed, proceed
+
+  // Fetch user profile for pitch personalization (plan no longer needed
+  // here; quota enforcement happens in the RPC above).
   const { data: profileRaw } = await supabase
     .from("profiles")
-    .select("full_name, company_name, phone, website, location, services, years_experience, portfolio_url, plan")
+    .select("full_name, company_name, phone, website, location, services, years_experience, portfolio_url")
     .eq("id", user.id)
     .single();
   const profile = profileRaw as {
@@ -36,45 +81,7 @@ export async function POST(request: Request) {
     phone: string | null; website: string | null;
     location: string | null; services: string[] | null;
     years_experience: number | null; portfolio_url: string | null;
-    plan: string;
   } | null;
-
-  // Check AI pitch limits (cached pitches don't count — only new generations)
-  // Free: 10/month, Pro: 200/month, Agency: unlimited
-  const pitchLimits: Record<string, number> = { free: 10, pro: 200, agency: 999999 };
-  const plan = profile?.plan ?? "free";
-  const pitchLimit = pitchLimits[plan] ?? 10;
-
-  // Check if pitch already cached (doesn't count against limit)
-  const { data: existingRaw } = await supabase
-    .from("lead_pitches")
-    .select("*")
-    .eq("business_id", businessId)
-    .single();
-
-  const existing = existingRaw as LeadPitch | null;
-  if (existing) {
-    return NextResponse.json({ pitch: existing });
-  }
-
-  // Count pitches generated this month (only if not cached)
-  if (pitchLimit < 999999) {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const { count } = await supabase
-      .from("lead_pitches")
-      .select("id", { count: "exact", head: true })
-      .gte("generated_at", startOfMonth.toISOString());
-
-    if ((count ?? 0) >= pitchLimit) {
-      return NextResponse.json(
-        { error: `Monthly AI pitch limit reached (${pitchLimit}). ${plan === "free" ? "Upgrade to Pro for 200 pitches/month." : "Resets next month."}` },
-        { status: 403 }
-      );
-    }
-  }
 
   // Fetch business data for the prompt
   const { data: bizRaw, error: bizError } = await supabase
@@ -183,7 +190,14 @@ Return ONLY a raw JSON object (no markdown, no code fences, no explanation) with
     }
   }
 
-  // Cache the pitch (type assertions needed until `supabase gen types` is run)
+  // If the user regenerated, delete the old cached pitch first so the
+  // upsert replaces it cleanly.
+  if (existing && regenerate) {
+    await supabase.from("lead_pitches").delete().eq("business_id", businessId);
+  }
+
+  // Cache the pitch. The INSERT policy from migration 009 checks that the
+  // business belongs to one of the user's scrape jobs.
   const { error: insertError } = await (supabase
     .from("lead_pitches") as ReturnType<typeof supabase.from>)
     .insert({
@@ -194,6 +208,9 @@ Return ONLY a raw JSON object (no markdown, no code fences, no explanation) with
     } as never);
 
   if (insertError) {
+    // Cache failed but we still have the pitch. Return it so the user
+    // gets value, but log so we can see if RLS is mis-set.
+    console.error("lead_pitches insert failed:", insertError);
     return NextResponse.json({ pitch: pitchData });
   }
 

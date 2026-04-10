@@ -1,6 +1,14 @@
 -- ============================================================
--- ByteBoundless — Supabase Schema
--- Run this in the Supabase SQL Editor (Dashboard → SQL Editor)
+-- ByteBoundless — Supabase Schema (INITIAL STATE ONLY — NOT SOURCE OF TRUTH)
+--
+-- ⚠️  This file is the original schema as of the first deploy. It is
+-- NOT kept up to date with subsequent changes. For a fresh Supabase
+-- project, run this file FIRST, then run every migration file
+-- (002_*.sql through NNN_*.sql) in order.
+--
+-- The numbered migration files in this directory are the source of
+-- truth — they add columns, policies, RPC functions, and tables that
+-- exist in production but are NOT in this file.
 -- ============================================================
 
 -- Enable required extensions

@@ -55,8 +55,21 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect users who haven't completed onboarding
-  if (user && isAppRoute && request.nextUrl.pathname !== "/setup") {
+  // Redirect users who haven't completed onboarding — EXCEPT when they're
+  // returning from a Stripe checkout flow (query param present). Otherwise
+  // they'd pay, get bounced to setup, and lose the success toast.
+  const isPostStripeReturn =
+    request.nextUrl.pathname === "/settings" &&
+    (request.nextUrl.searchParams.has("subscribe") ||
+      request.nextUrl.searchParams.has("purchase") ||
+      request.nextUrl.searchParams.has("billing"));
+
+  if (
+    user &&
+    isAppRoute &&
+    request.nextUrl.pathname !== "/setup" &&
+    !isPostStripeReturn
+  ) {
     const { data } = await supabase
       .from("profiles")
       .select("onboarding_complete")

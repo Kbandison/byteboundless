@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   User,
   CreditCard,
@@ -76,6 +76,9 @@ export default function SettingsPage() {
   const [buyingCredits, setBuyingCredits] = useState(false);
   const [notifyOnComplete, setNotifyOnComplete] = useState(true);
   const [savingNotify, setSavingNotify] = useState(false);
+  const [hasSubscription, setHasSubscription] = useState(false);
+  const [planExpiresAt, setPlanExpiresAt] = useState<string | null>(null);
+  const [role, setRole] = useState<string>("user");
 
   /* ── Read hash on mount & listen for changes ── */
   useEffect(() => {
@@ -90,41 +93,89 @@ export default function SettingsPage() {
     return () => window.removeEventListener("hashchange", readHash);
   }, []);
 
-  /* ── Fetch profile data ── */
+  /* ── Handle redirect query params from Stripe (success/cancel) ── */
   useEffect(() => {
-    async function fetchProfile() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      setEmail(user.email ?? "");
-      setUserId(user.id);
+    const params = new URLSearchParams(window.location.search);
+    const subscribe = params.get("subscribe");
+    const purchase = params.get("purchase");
+    const billing = params.get("billing");
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
+    // Stripe webhook processing is async — by the time the user is
+    // redirected back to our page, the webhook might still be in flight.
+    // For success cases we re-fetch the profile after a short delay to
+    // pick up the plan change.
+    const refetchAfterDelay = () => {
+      setTimeout(() => fetchProfile(), 1500);
+    };
 
-      if (data) {
-        const p = data as Record<string, unknown>;
-        setPlan(p.plan as string);
-        setSearchesUsed(p.searches_used as number);
-        setSearchesLimit(p.searches_limit as number);
-        setFullName((p.full_name as string) ?? "");
-        setPhone((p.phone as string) ?? "");
-        setWebsite((p.website as string) ?? "");
-        setCompanyName((p.company_name as string) ?? "");
-        setLocation((p.location as string) ?? "");
-        setServices((p.services as string[]) ?? []);
-        setYearsExperience(p.years_experience ? String(p.years_experience) : "");
-        setPortfolioUrl((p.portfolio_url as string) ?? "");
-        setOverageCredits((p.overage_credits as number) ?? 0);
-        setNotifyOnComplete((p.notify_on_complete as boolean) ?? true);
-      }
-      setLoading(false);
+    if (subscribe === "success") {
+      const planLabel = params.get("plan") === "agency" ? "Agency" : "Pro";
+      toast.success(`Welcome to ${planLabel}! Your subscription is active.`);
+      setActiveSection("billing");
+      refetchAfterDelay();
+    } else if (subscribe === "plan-updated") {
+      toast.success("Subscription updated");
+      setActiveSection("billing");
+      refetchAfterDelay();
+    } else if (subscribe === "cancelled") {
+      toast.info("Checkout cancelled — no charge was made");
+    } else if (purchase === "success") {
+      toast.success("200 extra results added to your account");
+      setActiveSection("billing");
+      refetchAfterDelay();
+    } else if (purchase === "cancelled") {
+      toast.info("Purchase cancelled — no charge was made");
     }
-    fetchProfile();
+
+    // Clean the query string so a refresh doesn't re-fire the toast.
+    // Preserves the hash (which drives the active section) via the
+    // pathname-only replace.
+    if (subscribe || purchase || billing) {
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState(null, "", cleanUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* ── Fetch profile data ── */
+  const fetchProfile = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    setEmail(user.email ?? "");
+    setUserId(user.id);
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+
+    if (data) {
+      const p = data as Record<string, unknown>;
+      setPlan(p.plan as string);
+      setSearchesUsed(p.searches_used as number);
+      setSearchesLimit(p.searches_limit as number);
+      setFullName((p.full_name as string) ?? "");
+      setPhone((p.phone as string) ?? "");
+      setWebsite((p.website as string) ?? "");
+      setCompanyName((p.company_name as string) ?? "");
+      setLocation((p.location as string) ?? "");
+      setServices((p.services as string[]) ?? []);
+      setYearsExperience(p.years_experience ? String(p.years_experience) : "");
+      setPortfolioUrl((p.portfolio_url as string) ?? "");
+      setOverageCredits((p.overage_credits as number) ?? 0);
+      setNotifyOnComplete((p.notify_on_complete as boolean) ?? true);
+      setHasSubscription(Boolean(p.stripe_subscription_id));
+      setPlanExpiresAt((p.plan_expires_at as string) ?? null);
+      setRole((p.role as string) ?? "user");
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   async function handleToggleNotify(next: boolean) {
     setSavingNotify(true);
@@ -429,6 +480,36 @@ export default function SettingsPage() {
                 Billing
               </h2>
 
+              {/* Beta / admin access banner */}
+              {(() => {
+                const betaDays = planExpiresAt
+                  ? Math.max(0, Math.ceil((new Date(planExpiresAt).getTime() - Date.now()) / 86400000))
+                  : null;
+                if (role === "admin") {
+                  return (
+                    <div className="mb-6 p-4 rounded-lg border border-red-500/20 bg-red-500/5">
+                      <p className="text-sm font-semibold text-red-600 mb-1">Admin access</p>
+                      <p className="text-xs text-[var(--color-text-secondary)]">
+                        You have unlimited access to every feature as an admin. Billing controls below apply to regular users only.
+                      </p>
+                    </div>
+                  );
+                }
+                if (betaDays !== null && betaDays > 0) {
+                  return (
+                    <div className="mb-6 p-4 rounded-lg border border-amber-500/20 bg-amber-500/5">
+                      <p className="text-sm font-semibold text-amber-700 mb-1">
+                        Beta access &mdash; {betaDays} day{betaDays === 1 ? "" : "s"} remaining
+                      </p>
+                      <p className="text-xs text-[var(--color-text-secondary)]">
+                        You have full Agency-tier access during the beta. When it expires you&apos;ll revert to Free, and you can upgrade anytime below to keep full access.
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {/* Usage stats */}
               <div className="grid grid-cols-2 gap-4 mb-8">
                 <div className="p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-center">
@@ -480,18 +561,38 @@ export default function SettingsPage() {
                         {p.description}
                       </p>
                     </div>
-                    {plan !== p.key && (
-                      <PlanChangeButton
-                        targetPlan={p.key as "free" | "pro" | "agency"}
-                        currentPlan={plan as "free" | "pro" | "agency"}
-                      />
-                    )}
+                    {plan !== p.key && (() => {
+                      const tierOrder = { free: 0, pro: 1, agency: 2 } as const;
+                      const isUpgrade =
+                        tierOrder[p.key as "free" | "pro" | "agency"] >
+                        tierOrder[plan as "free" | "pro" | "agency"];
+                      // Admins don't buy subscriptions; they bypass everything.
+                      if (role === "admin") return null;
+                      // Beta users have Agency already — hide downgrades (they
+                      // don't have a Stripe subscription to cancel). Upgrades
+                      // to higher tiers don't exist from Agency anyway.
+                      const betaDays = planExpiresAt
+                        ? Math.max(0, Math.ceil((new Date(planExpiresAt).getTime() - Date.now()) / 86400000))
+                        : 0;
+                      const onBeta = betaDays > 0;
+                      if (onBeta) return null;
+                      // Downgrades require a live Stripe subscription (portal
+                      // needs a customer). If there isn't one yet, skip.
+                      if (!isUpgrade && !hasSubscription) return null;
+                      return (
+                        <PlanChangeButton
+                          targetPlan={p.key as "free" | "pro" | "agency"}
+                          currentPlan={plan as "free" | "pro" | "agency"}
+                        />
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
 
-              {/* Overage credits */}
-              {(plan === "pro" || plan === "agency") && (
+              {/* Overage credits — only for real paying subscribers, not
+                  beta/admin "agency" holders who have no Stripe customer. */}
+              {(plan === "pro" || plan === "agency") && hasSubscription && (
                 <div className="mt-6 p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
                   <div className="flex items-center justify-between mb-2">
                     <div>
@@ -534,8 +635,11 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Manage subscription via Stripe Billing Portal */}
-              {(plan === "pro" || plan === "agency") && (
+              {/* Manage subscription via Stripe Billing Portal — only show
+                  for users who actually have a Stripe subscription. Beta
+                  users and admins have plan=agency but no subscription,
+                  so the portal would 409 for them. */}
+              {hasSubscription && (
                 <div className="mt-8 pt-6 border-t border-[var(--color-border)]">
                   <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-3">
                     Manage Subscription

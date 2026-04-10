@@ -55,24 +55,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
 
-  // If the user already has an active subscription, don't let them create
-  // a second one — they should manage it via the customer portal instead.
-  if (profile.stripe_subscription_id) {
-    return NextResponse.json(
-      {
-        error:
-          "You already have an active subscription. Manage it from the billing portal.",
-      },
-      { status: 409 }
-    );
-  }
-
   let stripe;
   try {
     stripe = getStripe();
   } catch (err) {
     const message = err instanceof Error ? err.message : "Stripe not configured";
     return NextResponse.json({ error: message }, { status: 503 });
+  }
+
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || request.headers.get("origin") || "";
+
+  // If the user already has an active subscription, we can't create a
+  // second one. Route them to the Stripe Billing Portal instead — the
+  // portal handles plan switching (requires "Subscription updates"
+  // enabled in the portal settings + both Pro and Agency added as
+  // allowed products, documented in docs/billing.md). The user picks
+  // the new plan inside the portal and Stripe emits the standard
+  // customer.subscription.updated webhook we already handle.
+  if (profile.stripe_subscription_id) {
+    if (!profile.stripe_customer_id) {
+      return NextResponse.json(
+        { error: "Subscription exists but no customer ID — contact support" },
+        { status: 500 }
+      );
+    }
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: profile.stripe_customer_id,
+      return_url: `${origin}/settings?subscribe=plan-updated`,
+    });
+    return NextResponse.json({ url: portalSession.url });
   }
 
   let customerId = profile.stripe_customer_id;
@@ -87,8 +98,6 @@ export async function POST(request: Request) {
       .update({ stripe_customer_id: customerId } as never)
       .eq("id", user.id);
   }
-
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || request.headers.get("origin") || "";
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,

@@ -68,17 +68,34 @@ export function UpgradePromo({ collapsed = false }: UpgradePromoProps) {
   const [upgradeLoading, setUpgradeLoading] = useState(false);
 
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+
+    async function fetchProfile() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user || cancelled) return;
       const { data } = await supabase
         .from("profiles")
         .select("plan, role, plan_expires_at")
         .eq("id", user.id)
         .single();
-      if (data) setProfile(data as ProfileState);
-    })();
+      if (data && !cancelled) setProfile(data as ProfileState);
+    }
+
+    fetchProfile();
+
+    // Re-fetch when the tab regains focus so changes made in other
+    // tabs / by admins / by a completed checkout are reflected without
+    // a hard refresh. Cheap — just one select on the profiles table.
+    function onVisible() {
+      if (document.visibilityState === "visible") fetchProfile();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   // Loading

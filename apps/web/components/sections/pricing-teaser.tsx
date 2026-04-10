@@ -186,14 +186,6 @@ export function PricingTeaser() {
           ))}
         </div>
 
-        <div className="text-center mt-8">
-          <Link
-            href="/pricing"
-            className="text-sm text-[var(--color-accent)] hover:underline"
-          >
-            See full pricing details &rarr;
-          </Link>
-        </div>
       </div>
     </section>
   );

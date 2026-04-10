@@ -120,7 +120,7 @@ export function AppSidebar() {
       >
         {/* Logo + collapse toggle */}
         <div className={cn(
-          "h-16 flex items-center border-b border-[var(--color-border)] shrink-0 group/header",
+          "h-16 flex items-center border-b border-[var(--color-border)] shrink-0",
           collapsed ? "justify-center px-2" : "px-4 justify-between gap-2"
         )}>
           <Link
@@ -136,7 +136,7 @@ export function AppSidebar() {
           {!collapsed && (
             <button
               onClick={toggleCollapsed}
-              className="p-1.5 rounded-md text-[var(--color-text-dim)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors opacity-0 group-hover/header:opacity-100 focus:opacity-100"
+              className="p-1.5 rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-hover)] hover:bg-[var(--color-bg-secondary)] transition-colors"
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
             >

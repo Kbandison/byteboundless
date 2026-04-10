@@ -1,19 +1,16 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { pageEnter } from "@/lib/motion";
 
 /**
- * Snappier per-page transition for authed app pages.
- * Marketing pages use the root /app/template.tsx which has a longer, more dramatic transition.
- * App pages prioritize speed since users navigate frequently.
+ * Per-page transition for authed app pages. Re-runs on every navigation
+ * because templates create a new instance per route change. Marketing
+ * pages use the root /app/template.tsx with a more dramatic fade.
  */
 export default function AppTemplate({ children }: { children: React.ReactNode }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-    >
+    <motion.div variants={pageEnter} initial="hidden" animate="visible">
       {children}
     </motion.div>
   );

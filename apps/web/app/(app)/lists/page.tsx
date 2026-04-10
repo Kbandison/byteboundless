@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { usePlan, isPaidPlan } from "@/hooks/use-plan";
 import { UpgradeGate } from "@/components/ui/upgrade-gate";
+import { StaggerContainer, StaggerItem } from "@/components/ui/motion-stagger";
 
 interface SavedList {
   id: string;
@@ -148,11 +149,11 @@ export default function SavedListsPage() {
       )}
 
       {lists.length > 0 ? (
-        <div className="space-y-3">
+        <StaggerContainer className="space-y-3">
           {lists.map((list) => (
-            <div
+            <StaggerItem
               key={list.id}
-              className="flex items-center justify-between p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-border-hover)] transition-all duration-300"
+              className="flex items-center justify-between p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 hover:shadow-md transition-all duration-300"
             >
               <Link href={`/lists/${list.id}`} className="flex-1">
                 <h3 className="text-sm font-semibold hover:text-[var(--color-accent)] transition-colors">{list.name}</h3>
@@ -167,9 +168,9 @@ export default function SavedListsPage() {
               >
                 <Trash2 className="w-4 h-4" />
               </button>
-            </div>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
       ) : (
         <div className="text-center py-20">
           <div className="w-16 h-16 mx-auto mb-6 rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] flex items-center justify-center">

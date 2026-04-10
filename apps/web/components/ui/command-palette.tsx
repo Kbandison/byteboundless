@@ -3,12 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Search, LayoutDashboard, Plus, Bookmark, Settings, BookOpen,
   Sun, Moon, LogOut, Shield, Flame, MapPin, Briefcase,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "@/hooks/use-theme";
+import { modalBackdrop, modalContent } from "@/lib/motion";
 
 interface RecentSearch {
   id: string;
@@ -120,22 +122,32 @@ export function CommandPalette() {
     router.push(path);
   }
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[100]">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={() => setOpen(false)}
-      />
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-[100]">
+          {/* Backdrop */}
+          <motion.div
+            variants={modalBackdrop}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          />
 
-      {/* Dialog */}
-      <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-full max-w-lg">
-        <Command
-          className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden"
-          loop
-        >
+          {/* Dialog */}
+          <motion.div
+            variants={modalContent}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="absolute top-[20%] left-1/2 -translate-x-1/2 w-full max-w-lg px-4"
+          >
+            <Command
+              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden"
+              loop
+            >
           <div className="flex items-center gap-3 px-4 border-b border-[var(--color-border)]">
             <Search className="w-4 h-4 text-[var(--color-text-dim)] shrink-0" />
             <Command.Input
@@ -269,13 +281,15 @@ export function CommandPalette() {
             </Command.Group>
           </Command.List>
 
-          <div className="border-t border-[var(--color-border)] px-4 py-2 flex items-center gap-4 text-[10px] text-[var(--color-text-dim)]">
-            <span><kbd className="font-[family-name:var(--font-mono)] px-1 py-0.5 rounded border border-[var(--color-border)]">↑↓</kbd> navigate</span>
-            <span><kbd className="font-[family-name:var(--font-mono)] px-1 py-0.5 rounded border border-[var(--color-border)]">↵</kbd> select</span>
-            <span><kbd className="font-[family-name:var(--font-mono)] px-1 py-0.5 rounded border border-[var(--color-border)]">esc</kbd> close</span>
-          </div>
-        </Command>
-      </div>
-    </div>
+              <div className="border-t border-[var(--color-border)] px-4 py-2 flex items-center gap-4 text-[10px] text-[var(--color-text-dim)]">
+                <span><kbd className="font-[family-name:var(--font-mono)] px-1 py-0.5 rounded border border-[var(--color-border)]">↑↓</kbd> navigate</span>
+                <span><kbd className="font-[family-name:var(--font-mono)] px-1 py-0.5 rounded border border-[var(--color-border)]">↵</kbd> select</span>
+                <span><kbd className="font-[family-name:var(--font-mono)] px-1 py-0.5 rounded border border-[var(--color-border)]">esc</kbd> close</span>
+              </div>
+            </Command>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }

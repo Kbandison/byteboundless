@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
+import { modalBackdrop, modalContent } from "@/lib/motion";
 
 interface Shortcut {
   keys: string[];
@@ -117,15 +119,25 @@ export function ShortcutsOverlay() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, router]);
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={() => setOpen(false)}
-      />
-      <div className="relative w-full max-w-2xl rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden">
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <motion.div
+            variants={modalBackdrop}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          />
+          <motion.div
+            variants={modalContent}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="relative w-full max-w-2xl rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden"
+          >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
           <h2 className="font-[family-name:var(--font-display)] text-lg font-bold tracking-tight">
             Keyboard shortcuts
@@ -169,7 +181,9 @@ export function ShortcutsOverlay() {
             Press <kbd className="font-[family-name:var(--font-mono)] text-[10px] px-1.5 py-0.5 rounded border border-[var(--color-border)]">?</kbd> any time to open this overlay
           </p>
         </div>
-      </div>
-    </div>
+      </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }

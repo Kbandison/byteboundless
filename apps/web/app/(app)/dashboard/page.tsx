@@ -3,6 +3,7 @@ import { Target, Plus, Search, Users, Flame, ArrowRight, Zap, TrendingUp, ArrowU
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
 import { Sparkline } from "@/components/ui/sparkline";
+import { StaggerContainer, StaggerItem } from "@/components/ui/motion-stagger";
 import type { Database } from "@byteboundless/supabase";
 
 type ScrapeJob = Database["public"]["Tables"]["scrape_jobs"]["Row"];
@@ -241,18 +242,19 @@ export default async function DashboardPage() {
           </h2>
           <span className="text-xs text-[var(--color-text-dim)] hidden sm:block">One-click searches for your area</span>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+        <StaggerContainer className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
           {PLAYS.map((play) => (
-            <Link
-              key={play.query}
-              href={`/search/new?query=${encodeURIComponent(play.query)}&location=${encodeURIComponent(userLocation)}&radius=${play.radius}`}
-              className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/30 hover:shadow-sm transition-all duration-200 text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]"
-            >
-              <span>{play.emoji}</span>
-              {play.title}
-            </Link>
+            <StaggerItem key={play.query} className="shrink-0">
+              <Link
+                href={`/search/new?query=${encodeURIComponent(play.query)}&location=${encodeURIComponent(userLocation)}&radius=${play.radius}`}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/30 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]"
+              >
+                <span>{play.emoji}</span>
+                {play.title}
+              </Link>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
       </div>
 
       {/* Recent Searches */}
@@ -262,12 +264,12 @@ export default async function DashboardPage() {
         </h2>
 
         {hasSearches ? (
-          <div className="space-y-2">
+          <StaggerContainer className="space-y-2">
             {recentJobs.map((job) => (
+              <StaggerItem key={job.id}>
               <Link
-                key={job.id}
                 href={job.status === "completed" ? `/search/${job.id}/results` : `/search/${job.id}`}
-                className="flex items-center justify-between px-5 py-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/20 transition-all duration-200 group"
+                className="flex items-center justify-between px-5 py-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/20 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 group"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3">
@@ -298,8 +300,9 @@ export default async function DashboardPage() {
                 </div>
                 <ArrowRight className="w-4 h-4 text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </Link>
+              </StaggerItem>
             ))}
-          </div>
+          </StaggerContainer>
         ) : (
           /* Empty State — personality per APP.md */
           <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] p-12 text-center">

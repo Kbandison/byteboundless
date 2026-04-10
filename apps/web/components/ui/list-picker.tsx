@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Bookmark, Plus, Loader2, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { modalBackdrop, modalContent } from "@/lib/motion";
 
 interface List {
   id: string;
@@ -81,12 +83,25 @@ export function ListPicker({ open, onClose, businessIds, onSaved }: ListPickerPr
     }
   }
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden">
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <motion.div
+            variants={modalBackdrop}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            variants={modalContent}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="relative w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden"
+          >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
           <div>
             <h2 className="font-[family-name:var(--font-display)] text-lg font-bold tracking-tight">
@@ -167,7 +182,9 @@ export function ListPicker({ open, onClose, businessIds, onSaved }: ListPickerPr
             </button>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }

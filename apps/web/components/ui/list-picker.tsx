@@ -100,7 +100,7 @@ export function ListPicker({ open, onClose, businessIds, onSaved }: ListPickerPr
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="relative w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden"
+            className="relative w-full max-w-md max-h-[85vh] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden flex flex-col"
           >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
           <div>
@@ -120,7 +120,7 @@ export function ListPicker({ open, onClose, businessIds, onSaved }: ListPickerPr
           </button>
         </div>
 
-        <div className="max-h-80 overflow-y-auto p-2">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2">
           {loading ? (
             <div className="py-8 flex justify-center">
               <Loader2 className="w-5 h-5 text-[var(--color-text-dim)] animate-spin" />

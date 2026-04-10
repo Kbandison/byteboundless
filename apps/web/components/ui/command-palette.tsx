@@ -142,7 +142,7 @@ export function CommandPalette() {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="absolute top-[20%] left-1/2 -translate-x-1/2 w-full max-w-lg px-4"
+            className="absolute top-[10vh] md:top-[20%] left-1/2 -translate-x-1/2 w-full max-w-lg px-4 max-h-[80vh]"
           >
             <Command
               className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden"
@@ -160,7 +160,7 @@ export function CommandPalette() {
             </kbd>
           </div>
 
-          <Command.List className="max-h-[28rem] overflow-y-auto p-2">
+          <Command.List className="max-h-[60vh] md:max-h-[28rem] overflow-y-auto p-2">
             <Command.Empty className="py-6 text-center text-sm text-[var(--color-text-dim)]">
               No results found.
             </Command.Empty>

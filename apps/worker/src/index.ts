@@ -8,6 +8,7 @@ import { Sentry } from "./instrument.js";
 
 import { createClient } from "@supabase/supabase-js";
 import { runScrape, runUrlEnrich, type RawBusiness } from "./scraper.js";
+import { sendJobCompleteEmail } from "./email.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -273,6 +274,39 @@ async function processJob(job: Record<string, unknown>) {
 
     await completeJob(jobId);
     console.log(`[Worker] Job ${jobId} completed — ${results.length} results`);
+
+    // Fire the completion email. Runs after completeJob so the job is
+    // already marked done in the DB — if the email send stalls, the user
+    // can still see their results immediately by navigating to the page.
+    // We check notify_on_complete here so opted-out users don't get spammed.
+    try {
+      const { data: userRow } = await supabase
+        .from("profiles")
+        .select("email, notify_on_complete")
+        .eq("id", job.user_id as string)
+        .single();
+      const profile = userRow as { email: string; notify_on_complete: boolean } | null;
+
+      if (profile && profile.notify_on_complete) {
+        const hotCount = results.filter((b) => (b.leadScore ?? 0) >= 80).length;
+        await sendJobCompleteEmail({
+          email: profile.email,
+          query: job.query as string,
+          location: job.location as string,
+          jobId,
+          resultCount: results.length,
+          hotCount,
+          mode: isUrlMode ? "urls" : undefined,
+        });
+      }
+    } catch (emailErr) {
+      // Never fail the job because of email issues
+      console.error("[Worker] Post-completion email step failed:", emailErr);
+      Sentry.captureException(emailErr, {
+        tags: { context: "post_completion_email" },
+        extra: { jobId },
+      });
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[Worker] Job ${jobId} failed:`, message);

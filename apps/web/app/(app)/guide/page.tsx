@@ -1,7 +1,7 @@
 import {
-  Search, MapPin, Globe, Sparkles, Target, Star, Mail, Phone,
+  Search, Globe, Sparkles, Target, Phone,
   Bookmark, CheckCircle2, Download, Filter, ArrowRight, Zap,
-  TrendingUp, Users, Shield, Smartphone, Clock, BarChart3,
+  TrendingUp, Shield, Smartphone, Clock, BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";

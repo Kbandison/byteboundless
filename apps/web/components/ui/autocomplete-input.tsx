@@ -41,6 +41,11 @@ export function AutocompleteInput({
     } catch { /* ignore */ }
   }, [apiEndpoint]);
 
+  // This effect drives suggestion filtering. The static `suggestions` path
+  // sets state synchronously (technically derivable via useMemo + render),
+  // but the `apiEndpoint` path needs an effect to debounce the fetch, and
+  // splitting the two would fragment the logic. Leaving as-is.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!value.trim()) {
       setFiltered([]);
@@ -65,6 +70,7 @@ export function AutocompleteInput({
     }
     setHighlightIdx(-1);
   }, [value, suggestions, apiEndpoint, fetchFromApi]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import {
   User,
   CreditCard,
+  Bell,
   AlertTriangle,
   Loader2,
   ArrowRight,
@@ -43,11 +44,12 @@ const PLANS = [
   },
 ];
 
-type Section = "profile" | "billing" | "danger";
+type Section = "profile" | "billing" | "notifications" | "danger";
 
 const NAV_ITEMS: { key: Section; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
   { key: "billing", label: "Billing", icon: CreditCard },
+  { key: "notifications", label: "Notifications", icon: Bell },
   { key: "danger", label: "Danger Zone", icon: AlertTriangle },
 ];
 
@@ -72,12 +74,14 @@ export default function SettingsPage() {
   const [userId, setUserId] = useState("");
   const [overageCredits, setOverageCredits] = useState(0);
   const [buyingCredits, setBuyingCredits] = useState(false);
+  const [notifyOnComplete, setNotifyOnComplete] = useState(true);
+  const [savingNotify, setSavingNotify] = useState(false);
 
   /* ── Read hash on mount & listen for changes ── */
   useEffect(() => {
     const readHash = () => {
       const hash = window.location.hash.replace("#", "") as Section;
-      if (["profile", "billing", "danger"].includes(hash)) {
+      if (["profile", "billing", "notifications", "danger"].includes(hash)) {
         setActiveSection(hash);
       }
     };
@@ -115,11 +119,29 @@ export default function SettingsPage() {
         setYearsExperience(p.years_experience ? String(p.years_experience) : "");
         setPortfolioUrl((p.portfolio_url as string) ?? "");
         setOverageCredits((p.overage_credits as number) ?? 0);
+        setNotifyOnComplete((p.notify_on_complete as boolean) ?? true);
       }
       setLoading(false);
     }
     fetchProfile();
   }, []);
+
+  async function handleToggleNotify(next: boolean) {
+    setSavingNotify(true);
+    setNotifyOnComplete(next); // optimistic
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("profiles")
+      .update({ notify_on_complete: next } as never)
+      .eq("id", userId);
+    setSavingNotify(false);
+    if (error) {
+      setNotifyOnComplete(!next); // revert
+      toast.error("Failed to save preference");
+    } else {
+      toast.success(next ? "Notifications on" : "Notifications off");
+    }
+  }
 
   /* ── Handlers ── */
   const handleSaveProfile = async () => {
@@ -158,7 +180,13 @@ export default function SettingsPage() {
 
   const navigateTo = (section: Section) => {
     setActiveSection(section);
-    window.location.hash = section;
+    // Use history.replaceState instead of assigning to location.hash.
+    // React Compiler flags the direct assignment as an immutability
+    // violation; replaceState is a function call so it passes the rule
+    // and behaves identically (updates URL without triggering navigation).
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `#${section}`);
+    }
   };
 
   /* ── Loading state ── */
@@ -181,7 +209,7 @@ export default function SettingsPage() {
               key={key}
               onClick={() => navigateTo(key)}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 whitespace-nowrap w-full text-left",
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 whitespace-nowrap shrink-0 md:w-full md:text-left",
                 activeSection === key
                   ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)] border-l-2 border-[var(--color-accent)] md:rounded-l-none"
                   : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]"
@@ -508,6 +536,49 @@ export default function SettingsPage() {
 
               <p className="text-xs text-[var(--color-text-dim)] mt-4">
                 Billing is managed through Stripe.
+              </p>
+            </section>
+          )}
+
+          {/* ─── Notifications Section ─── */}
+          {activeSection === "notifications" && (
+            <section>
+              <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold text-[var(--color-text-primary)] mb-6">
+                Notifications
+              </h2>
+
+              <div className="flex items-start justify-between gap-6 p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                    Email me when searches complete
+                  </p>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-1 leading-relaxed">
+                    Get a summary email with the result count and hot lead count when a long-running search finishes. Useful if you start a search and close the tab.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleToggleNotify(!notifyOnComplete)}
+                  disabled={savingNotify}
+                  role="switch"
+                  aria-checked={notifyOnComplete}
+                  className={cn(
+                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 disabled:opacity-50",
+                    notifyOnComplete
+                      ? "bg-[var(--color-accent)]"
+                      : "bg-[var(--color-bg-secondary)] border border-[var(--color-border)]"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                      notifyOnComplete ? "translate-x-6" : "translate-x-1"
+                    )}
+                  />
+                </button>
+              </div>
+
+              <p className="text-xs text-[var(--color-text-dim)] mt-4">
+                You&apos;ll still see the in-app progress indicator regardless of this setting.
               </p>
             </section>
           )}

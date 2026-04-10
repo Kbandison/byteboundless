@@ -159,9 +159,9 @@ export default async function DashboardPage() {
       </div>
 
       {/* Bento Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-10">
         {/* Big stat — hot leads (spans 2 cols, 2 rows) — premium card with shadow */}
-        <div className="col-span-2 row-span-2 p-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col justify-between shadow-[0_4px_24px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_24px_-12px_rgba(0,0,0,0.4)]">
+        <div className="col-span-2 row-span-2 p-6 md:p-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col justify-between shadow-[0_4px_24px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_24px_-12px_rgba(0,0,0,0.4)]">
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -175,7 +175,7 @@ export default async function DashboardPage() {
                 </span>
               )}
             </div>
-            <p className="font-[family-name:var(--font-mono)] text-7xl md:text-8xl font-bold tracking-tight text-emerald-500">
+            <p className="font-[family-name:var(--font-mono)] text-6xl md:text-8xl font-bold tracking-tight text-emerald-500">
               {hotLeadCount}
             </p>
             <p className="text-sm text-[var(--color-text-secondary)] mt-2">

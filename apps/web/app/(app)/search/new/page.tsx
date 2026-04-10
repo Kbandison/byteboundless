@@ -113,7 +113,7 @@ function NewSearchForm() {
     }
     if (enrichParam === "false" || enrichParam === "0")
       setEnrich(false);
-  }, [searchParams]);
+  }, [searchParams, plan]);
 
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);

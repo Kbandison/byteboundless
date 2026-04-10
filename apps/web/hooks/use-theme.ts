@@ -22,6 +22,13 @@ export function useTheme() {
   const [theme, setThemeState] = useState<Theme>("system");
   const [mounted, setMounted] = useState(false);
 
+  // Hydrate theme state from localStorage on mount. The setState calls
+  // are synchronous in the effect body, which the React Compiler lint
+  // rule flags — but this is a one-time hydration of external state
+  // (localStorage), exactly the case where a setState-in-effect is
+  // correct. useSyncExternalStore would be the "blessed" alternative but
+  // overkill here since we only sync once on mount.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const saved = localStorage.getItem("bb-theme") as Theme | null;
     const initial = saved || "system";
@@ -39,6 +46,7 @@ export function useTheme() {
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);

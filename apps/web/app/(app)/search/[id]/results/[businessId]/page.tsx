@@ -325,7 +325,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 <Bookmark className="w-4 h-4" /> Save to List
               </button>
               {showListDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg shadow-lg z-10 overflow-hidden">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg shadow-lg z-10 overflow-y-auto max-h-[50vh]">
                   {lists.map((list) => (
                     <button
                       key={list.id}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Bookmark, Plus, Loader2, Trash2, Lock } from "lucide-react";
+import { Bookmark, Plus, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { usePlan, isPaidPlan } from "@/hooks/use-plan";
@@ -47,7 +47,13 @@ export default function SavedListsPage() {
     setLoading(false);
   }
 
+  // fetchLists is async — all its setState calls happen after an await,
+  // so they're in a later microtask and not "synchronously within an
+  // effect." The lint rule can't see through the function call, so we
+  // disable it for this known-good data-fetching pattern.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => { fetchLists(); }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleCreate() {
     if (!newName.trim()) return;
@@ -68,15 +74,55 @@ export default function SavedListsPage() {
     fetchLists();
   }
 
-  async function handleDelete(listId: string) {
-    const supabase = createClient();
-    const { error } = await supabase.from("saved_lists").delete().eq("id", listId);
-    if (error) {
-      toast.error("Failed to delete list");
-      return;
-    }
+  // Undo-capable delete: remove optimistically, show a toast with an Undo
+  // action, and only actually delete from the DB after the undo window
+  // expires. If the user clicks Undo (or the delete fails), we restore the
+  // list to the UI.
+  function handleDelete(listId: string) {
+    const list = lists.find((l) => l.id === listId);
+    if (!list) return;
+
+    // Remember the list's position so Undo puts it back where it was
+    const originalIndex = lists.findIndex((l) => l.id === listId);
+
+    // Optimistic removal
     setLists((prev) => prev.filter((l) => l.id !== listId));
-    toast.success("List deleted");
+
+    // Undo flag — captured by both the toast action and the commit timer.
+    // If the user clicks Undo, this flips to true and the commit bails out.
+    let undone = false;
+
+    toast(`Deleted "${list.name}"`, {
+      duration: 5000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          undone = true;
+          setLists((prev) => {
+            const next = [...prev];
+            next.splice(originalIndex, 0, list);
+            return next;
+          });
+        },
+      },
+    });
+
+    // After the undo window closes, commit the delete. If the user clicked
+    // Undo, skip. If the DB delete fails (unlikely), restore and show an
+    // error toast.
+    setTimeout(async () => {
+      if (undone) return;
+      const supabase = createClient();
+      const { error } = await supabase.from("saved_lists").delete().eq("id", listId);
+      if (error) {
+        toast.error("Failed to delete list — restoring");
+        setLists((prev) => {
+          const next = [...prev];
+          next.splice(originalIndex, 0, list);
+          return next;
+        });
+      }
+    }, 5000);
   }
 
   if (loading) {

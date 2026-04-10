@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { use } from "react";
-import { ArrowLeft, Trash2, Loader2, Star, Mail, Phone, ExternalLink } from "lucide-react";
+import { ArrowLeft, Trash2, Loader2, Star, Phone } from "lucide-react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { getScoreColor, TECH_STACK_COLORS } from "@/lib/constants";
@@ -71,10 +72,50 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
     fetchData();
   }, [listId]);
 
-  async function removeItem(itemId: string) {
-    const supabase = createClient();
-    await supabase.from("saved_list_items").delete().eq("id", itemId);
+  // Undo-capable remove: drop the row from the UI optimistically, show a
+  // toast with an Undo action, and only delete from the DB after the undo
+  // window expires. If the user clicks Undo, we splice the item back into
+  // its original position.
+  function removeItem(itemId: string) {
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
+
+    const originalIndex = items.findIndex((i) => i.id === itemId);
     setItems((prev) => prev.filter((i) => i.id !== itemId));
+
+    let undone = false;
+
+    toast(`Removed "${item.business.name}"`, {
+      duration: 5000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          undone = true;
+          setItems((prev) => {
+            const next = [...prev];
+            next.splice(originalIndex, 0, item);
+            return next;
+          });
+        },
+      },
+    });
+
+    setTimeout(async () => {
+      if (undone) return;
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("saved_list_items")
+        .delete()
+        .eq("id", itemId);
+      if (error) {
+        toast.error("Failed to remove — restoring");
+        setItems((prev) => {
+          const next = [...prev];
+          next.splice(originalIndex, 0, item);
+          return next;
+        });
+      }
+    }, 5000);
   }
 
   if (loading) {
@@ -125,7 +166,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
                 {item.status === "contacted" && (
                   <span className="text-[10px] uppercase tracking-wider text-emerald-600 font-medium">Contacted</span>
                 )}
-                <button onClick={() => removeItem(item.id)} className="p-2 text-[var(--color-text-dim)] hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                <button onClick={() => removeItem(item.id)} className="p-2 text-[var(--color-text-dim)] hover:text-red-500 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>

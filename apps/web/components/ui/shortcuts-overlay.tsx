@@ -136,7 +136,7 @@ export function ShortcutsOverlay() {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="relative w-full max-w-2xl rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden"
+            className="relative w-full max-w-2xl max-h-[85vh] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-hidden flex flex-col"
           >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
           <h2 className="font-[family-name:var(--font-display)] text-lg font-bold tracking-tight">
@@ -150,7 +150,7 @@ export function ShortcutsOverlay() {
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="flex-1 min-h-0 p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 overflow-y-auto">
           {SHORTCUTS.map((group) => (
             <div key={group.heading}>
               <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-3">

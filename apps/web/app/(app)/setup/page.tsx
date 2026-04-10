@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowLeft, Check, Loader2, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
@@ -26,7 +25,6 @@ const SERVICE_OPTIONS = [
 ];
 
 export default function SetupPage() {
-  const router = useRouter();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState("");

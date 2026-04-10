@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { use } from "react";
 import {
@@ -129,6 +129,11 @@ export default function SearchRunningPage({
   const [startedAt, setStartedAt] = useState<Date | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
+  // Use a ref for startedAt inside the fetch so we don't need to list it
+  // as a dep on useCallback (which would cause the callback to change on
+  // every fetch and retrigger the effect).
+  const startedAtRef = useRef<Date | null>(null);
+
   const fetchJob = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
@@ -143,7 +148,11 @@ export default function SearchRunningPage({
     setLocation(job.location as string);
     const opts = job.options as Record<string, unknown> | null;
     if (opts?.radius) setRadius(opts.radius as string);
-    if (!startedAt && job.created_at) setStartedAt(new Date(job.created_at as string));
+    if (!startedAtRef.current && job.created_at) {
+      const d = new Date(job.created_at as string);
+      startedAtRef.current = d;
+      setStartedAt(d);
+    }
     setStatus(job.status as JobStatus);
     setPhase((job.phase as Phase) ?? null);
     setCurrent(job.progress_current as number);
@@ -159,10 +168,15 @@ export default function SearchRunningPage({
     }
   }, [id]);
 
-  // Initial fetch
+  // Initial fetch. setState calls happen inside the async IIFE (after an
+  // await), so they're in a later microtask — not "synchronously within an
+  // effect." The lint rule doesn't see through the function call, so we
+  // disable it here for this known-good pattern.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchJob();
   }, [fetchJob]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Elapsed time counter
   useEffect(() => {
@@ -215,8 +229,6 @@ export default function SearchRunningPage({
     if (thisIdx === currentIdx) return "active";
     return "pending";
   };
-
-  const hotCount = Math.round(resultCount * 0.25); // Approximate until we query
 
   return (
     <div className="max-w-2xl mx-auto px-6 md:px-8 py-12">

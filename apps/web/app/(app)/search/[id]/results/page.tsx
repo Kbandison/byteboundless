@@ -689,38 +689,44 @@ export default function ResultsPage({
 
       {/* Floating bulk-action bar */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 md:left-[calc(var(--app-sidebar-w,240px)/2+50%)] md:-translate-x-1/2">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-accent)]/10">
+        <div className="fixed bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-40 md:left-[calc(var(--app-sidebar-w,240px)/2+50%)] md:-translate-x-1/2 w-full max-w-[calc(100vw-1rem)] md:w-auto px-2 md:px-0">
+          <div className="flex items-center gap-1 md:gap-2 px-2 md:px-3 py-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl overflow-x-auto flex-nowrap">
+            <div className="flex items-center gap-2 px-2 md:px-3 py-1.5 rounded-lg bg-[var(--color-accent)]/10 shrink-0">
               <span className="font-[family-name:var(--font-mono)] text-sm font-bold text-[var(--color-accent)]">
                 {selectedIds.size}
               </span>
               <span className="text-xs text-[var(--color-text-secondary)]">selected</span>
             </div>
-            <div className="h-6 w-px bg-[var(--color-border)]" />
+            <div className="h-6 w-px bg-[var(--color-border)] shrink-0" />
             {paid && (
               <button
                 onClick={() => setShowListPicker(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors"
+                className="inline-flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors shrink-0"
               >
                 <Bookmark className="w-3.5 h-3.5" />
-                Save to list
+                <span className="hidden sm:inline">Save to list</span>
+                <span className="sm:hidden">Save</span>
               </button>
             )}
             {paid && (
               <button
                 onClick={bulkMarkContacted}
                 disabled={bulkLoading === "contact"}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors disabled:opacity-50 shrink-0"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                {bulkLoading === "contact" ? "Marking..." : "Mark contacted"}
+                <span className="hidden sm:inline">
+                  {bulkLoading === "contact" ? "Marking..." : "Mark contacted"}
+                </span>
+                <span className="sm:hidden">
+                  {bulkLoading === "contact" ? "..." : "Contact"}
+                </span>
               </button>
             )}
             {paid ? (
               <button
                 onClick={bulkExportCsv}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+                className="inline-flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors shrink-0"
               >
                 <Download className="w-3.5 h-3.5" />
                 Export
@@ -728,16 +734,17 @@ export default function ResultsPage({
             ) : (
               <Link
                 href="/pricing"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-dim)] hover:text-[var(--color-accent)] transition-colors"
+                className="inline-flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-dim)] hover:text-[var(--color-accent)] transition-colors shrink-0"
               >
                 <Lock className="w-3.5 h-3.5" />
-                Upgrade for bulk actions
+                <span className="hidden sm:inline">Upgrade for bulk actions</span>
+                <span className="sm:hidden">Upgrade</span>
               </Link>
             )}
-            <div className="h-6 w-px bg-[var(--color-border)]" />
+            <div className="h-6 w-px bg-[var(--color-border)] shrink-0" />
             <button
               onClick={clearSelection}
-              className="p-1.5 rounded-lg text-[var(--color-text-dim)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+              className="p-1.5 rounded-lg text-[var(--color-text-dim)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors shrink-0"
               aria-label="Clear selection"
             >
               <X className="w-4 h-4" />

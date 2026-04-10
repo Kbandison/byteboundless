@@ -1,11 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Mail, ArrowRight, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
+  // useSearchParams requires a Suspense boundary at the page level during
+  // prerendering. The actual form logic lives in SignupForm below.
+  return (
+    <Suspense fallback={<div className="w-full max-w-md" />}>
+      <SignupForm />
+    </Suspense>
+  );
+}
+
+function SignupForm() {
+  const searchParams = useSearchParams();
+  const planIntent = searchParams.get("plan");
+  const isValidPlan = planIntent === "pro" || planIntent === "agency";
+
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -18,11 +33,20 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
+    // If the user arrived with a ?plan= query param from the pricing
+    // page, thread it through the magic-link flow so they land on the
+    // checkout handoff page after authenticating instead of the
+    // dashboard. The auth callback reads `next` and redirects there.
+    const next = isValidPlan ? `/auth/checkout?plan=${planIntent}` : undefined;
+    const callbackUrl = next
+      ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+      : `${window.location.origin}/auth/callback`;
+
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: callbackUrl,
       },
     });
 
@@ -51,10 +75,14 @@ export default function SignupPage() {
           <>
             <div className="mb-8">
               <h1 className="text-2xl font-bold tracking-tight font-[family-name:var(--font-display)]">
-                Create your account
+                {isValidPlan
+                  ? `Sign up for ${planIntent === "pro" ? "Pro" : "Agency"}`
+                  : "Create your account"}
               </h1>
               <p className="mt-2 text-sm text-[var(--color-text-secondary)] font-[family-name:var(--font-body)]">
-                Enter your email to get started with a magic link.
+                {isValidPlan
+                  ? "Enter your email — we'll send you a magic link and take you straight to checkout after you sign in."
+                  : "Enter your email to get started with a magic link."}
               </p>
             </div>
 

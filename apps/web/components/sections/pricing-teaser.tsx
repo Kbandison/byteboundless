@@ -37,7 +37,7 @@ const TIERS = [
       { text: "CSV export", included: true },
     ],
     cta: "Go Pro",
-    href: "/signup",
+    href: "/signup?plan=pro",
     featured: true,
   },
   {
@@ -53,8 +53,8 @@ const TIERS = [
       { text: "Priority support", included: true },
       { text: "Priority scraping + CSV export", included: true },
     ],
-    cta: "Contact Us",
-    href: "/signup",
+    cta: "Go Agency",
+    href: "/signup?plan=agency",
     featured: false,
   },
 ];

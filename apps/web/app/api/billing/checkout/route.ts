@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 
@@ -8,14 +9,29 @@ const PRICE_CENTS = 400; // $4.00
 /**
  * POST /api/billing/checkout
  *
- * Creates a one-time payment checkout session for 200 extra search
- * results ($4). Used by paid-plan users to top up when they hit their
- * monthly limit. The webhook credits their account on successful payment.
+ * Creates a one-time PaymentIntent for 200 extra search results ($4)
+ * and returns its client_secret. The /checkout page mounts a Stripe
+ * Payment Element with that client_secret so the user pays inside our
+ * own custom UI (no redirect to Stripe-hosted checkout).
  *
- * For subscription checkouts (upgrading to Pro/Agency), use
- * POST /api/billing/subscribe instead.
+ * On successful payment, the webhook handles `payment_intent.succeeded`
+ * and credits the user's account based on metadata.
+ *
+ * For subscription upgrades, use POST /api/billing/subscribe instead.
  */
-export async function POST(request: Request) {
+export async function POST() {
+  try {
+    return await handleCheckout();
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: "api/billing/checkout" },
+    });
+    const message = err instanceof Error ? err.message : "Internal error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function handleCheckout() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -28,7 +44,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  // Get or create Stripe customer (reuse profile's stripe_customer_id)
+  // Get or create the Stripe customer (reuse profile's stripe_customer_id)
   const { data: profileRaw } = await supabase
     .from("profiles")
     .select("stripe_customer_id, email")
@@ -38,7 +54,13 @@ export async function POST(request: Request) {
     stripe_customer_id: string | null;
     email: string;
   } | null;
-  if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  if (!profile) {
+    Sentry.captureMessage("Profile not found in checkout", {
+      level: "warning",
+      tags: { route: "api/billing/checkout", user_id: user.id },
+    });
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
 
   let customerId = profile.stripe_customer_id;
   if (!customerId) {
@@ -53,35 +75,40 @@ export async function POST(request: Request) {
       .eq("id", user.id);
   }
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || request.headers.get("origin") || "";
-
-  const session = await stripe.checkout.sessions.create({
+  // Create the PaymentIntent. Metadata carries everything the webhook
+  // needs to credit the right user with the right number of credits.
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: PRICE_CENTS,
+    currency: "usd",
     customer: customerId,
-    mode: "payment",
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          unit_amount: PRICE_CENTS,
-          product_data: {
-            name: `${CREDITS_PER_PACK} Extra Results`,
-            description: "Add 200 extra results to your current search allowance",
-          },
-        },
-        quantity: 1,
-      },
-    ],
-    success_url: `${origin}/settings?purchase=success`,
-    cancel_url: `${origin}/settings?purchase=cancelled`,
+    automatic_payment_methods: { enabled: true },
+    description: `${CREDITS_PER_PACK} Extra Search Results`,
     metadata: {
       supabase_uid: user.id,
       credits: String(CREDITS_PER_PACK),
+      kind: "overage_credits",
     },
   });
 
-  if (!session.url) {
-    return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 });
+  if (!paymentIntent.client_secret) {
+    Sentry.captureMessage("PaymentIntent created without client_secret", {
+      level: "error",
+      tags: {
+        route: "api/billing/checkout",
+        payment_intent_id: paymentIntent.id,
+        user_id: user.id,
+      },
+    });
+    return NextResponse.json(
+      { error: "Failed to create payment intent" },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json({ url: session.url });
+  return NextResponse.json({
+    clientSecret: paymentIntent.client_secret,
+    paymentIntentId: paymentIntent.id,
+    amountCents: PRICE_CENTS,
+    credits: CREDITS_PER_PACK,
+  });
 }

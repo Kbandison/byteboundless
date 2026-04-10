@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use } from "react";
 import {
   ArrowUpDown,
@@ -172,27 +173,10 @@ export default function ResultsPage({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showListPicker, setShowListPicker] = useState(false);
   const [bulkLoading, setBulkLoading] = useState<"contact" | null>(null);
-  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const router = useRouter();
 
-  async function startUpgrade() {
-    setUpgradeLoading(true);
-    try {
-      const res = await fetch("/api/billing/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "pro" }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Failed to start checkout");
-        return;
-      }
-      if (data.url) window.location.href = data.url;
-    } catch {
-      toast.error("Failed to start checkout");
-    } finally {
-      setUpgradeLoading(false);
-    }
+  function startUpgrade() {
+    router.push("/checkout?type=subscription&plan=pro");
   }
 
   function toggleSelect(id: string) {
@@ -466,8 +450,7 @@ export default function ResultsPage({
           ) : (
             <button
               onClick={startUpgrade}
-              disabled={upgradeLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-[var(--color-border)] text-sm text-[var(--color-text-dim)] hover:border-[var(--color-accent)]/30 hover:text-[var(--color-accent)] transition-all duration-300 disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-[var(--color-border)] text-sm text-[var(--color-text-dim)] hover:border-[var(--color-accent)]/30 hover:text-[var(--color-accent)] transition-all duration-300"
             >
               <Lock className="w-3.5 h-3.5" />
               Export CSV
@@ -757,8 +740,7 @@ export default function ResultsPage({
             ) : (
               <button
                 onClick={startUpgrade}
-                disabled={upgradeLoading}
-                className="inline-flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-dim)] hover:text-[var(--color-accent)] transition-colors shrink-0 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-dim)] hover:text-[var(--color-accent)] transition-colors shrink-0"
               >
                 <Lock className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Upgrade for bulk actions</span>

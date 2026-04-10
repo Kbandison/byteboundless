@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
+import type Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe, PLAN_PRICE_IDS } from "@/lib/stripe";
 
@@ -7,12 +9,36 @@ import { getStripe, PLAN_PRICE_IDS } from "@/lib/stripe";
  *
  * Body: { plan: 'pro' | 'agency' }
  *
- * Creates a Stripe checkout session in subscription mode and returns
- * the checkout URL. The client redirects to it. On successful payment
- * Stripe fires `checkout.session.completed` + `customer.subscription.created`
- * webhooks which update the user's plan in Supabase.
+ * Creates an "incomplete" Stripe Subscription for the user and returns
+ * the PaymentIntent client_secret from its initial invoice. The /checkout
+ * page mounts a Stripe Payment Element with that client_secret so the
+ * user can complete payment inside our own custom UI (no redirect to
+ * Stripe-hosted checkout).
+ *
+ * Webhook handles the rest: customer.subscription.created /
+ * subscription.updated fire after payment confirms, our handler flips
+ * the user's plan in Supabase.
+ *
+ * For users who already have a subscription (Pro upgrading to Agency),
+ * we route them to the Stripe Billing Portal instead — Stripe's portal
+ * handles plan switching natively. Custom checkout is only for NEW
+ * subscriptions.
  */
 export async function POST(request: Request) {
+  try {
+    return await handleSubscribe(request);
+  } catch (err) {
+    // Catch-all so any unexpected Stripe SDK / Supabase error reaches
+    // Sentry with route context. The thrown error becomes a 500.
+    Sentry.captureException(err, {
+      tags: { route: "api/billing/subscribe" },
+    });
+    const message = err instanceof Error ? err.message : "Internal error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function handleSubscribe(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -39,7 +65,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Get or create the Stripe customer (reuses the profile's stripe_customer_id)
   const { data: profileRaw } = await supabase
     .from("profiles")
     .select("stripe_customer_id, email, stripe_subscription_id")
@@ -52,6 +77,10 @@ export async function POST(request: Request) {
   } | null;
 
   if (!profile) {
+    Sentry.captureMessage("Profile not found in subscribe", {
+      level: "warning",
+      tags: { route: "api/billing/subscribe", user_id: user.id },
+    });
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
 
@@ -63,15 +92,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || request.headers.get("origin") || "";
+  const origin =
+    process.env.NEXT_PUBLIC_SITE_URL || request.headers.get("origin") || "";
 
-  // If the user already has an active subscription, we can't create a
-  // second one. Route them to the Stripe Billing Portal instead — the
-  // portal handles plan switching (requires "Subscription updates"
-  // enabled in the portal settings + both Pro and Agency added as
-  // allowed products, documented in docs/billing.md). The user picks
-  // the new plan inside the portal and Stripe emits the standard
-  // customer.subscription.updated webhook we already handle.
+  // Existing subscriber → portal flow for plan changes (Stripe handles
+  // proration, payment method reuse, etc. natively).
   if (profile.stripe_subscription_id) {
     if (!profile.stripe_customer_id) {
       return NextResponse.json(
@@ -83,9 +108,10 @@ export async function POST(request: Request) {
       customer: profile.stripe_customer_id,
       return_url: `${origin}/settings?subscribe=plan-updated`,
     });
-    return NextResponse.json({ url: portalSession.url });
+    return NextResponse.json({ portalUrl: portalSession.url });
   }
 
+  // Get or create the Stripe customer
   let customerId = profile.stripe_customer_id;
   if (!customerId) {
     const customer = await stripe.customers.create({
@@ -99,32 +125,54 @@ export async function POST(request: Request) {
       .eq("id", user.id);
   }
 
-  const session = await stripe.checkout.sessions.create({
+  // Create the subscription in "incomplete" state — payment hasn't
+  // happened yet. The PaymentIntent on the latest invoice carries the
+  // client_secret we hand to the browser SDK to confirm payment.
+  //
+  // payment_settings:
+  //   - save_default_payment_method: 'on_subscription' attaches the
+  //     successfully-charged payment method to the subscription so it
+  //     auto-charges on renewal.
+  //
+  // expand:
+  //   - latest_invoice.payment_intent gives us the PI in one round trip.
+  const subscription = await stripe.subscriptions.create({
     customer: customerId,
-    mode: "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${origin}/settings?subscribe=success&plan=${plan}`,
-    cancel_url: `${origin}/settings?subscribe=cancelled`,
+    items: [{ price: priceId }],
+    payment_behavior: "default_incomplete",
+    payment_settings: {
+      save_default_payment_method: "on_subscription",
+    },
+    expand: ["latest_invoice.confirmation_secret"],
     metadata: {
       supabase_uid: user.id,
       plan,
     },
-    // Propagate to the subscription so webhook handlers can find the user
-    // even if they only get the subscription object
-    subscription_data: {
-      metadata: {
-        supabase_uid: user.id,
-        plan,
-      },
-    },
   });
 
-  if (!session.url) {
+  // Stripe types for `latest_invoice` are a union; narrow to the expanded
+  // shape so we can pull the confirmation_secret.
+  const latestInvoice = subscription.latest_invoice as Stripe.Invoice | null;
+  const clientSecret = latestInvoice?.confirmation_secret?.client_secret;
+
+  if (!clientSecret) {
+    Sentry.captureMessage("Subscription created without client_secret", {
+      level: "error",
+      tags: {
+        route: "api/billing/subscribe",
+        subscription_id: subscription.id,
+        user_id: user.id,
+      },
+    });
     return NextResponse.json(
-      { error: "Failed to create checkout session" },
+      { error: "Failed to create payment intent" },
       { status: 500 }
     );
   }
 
-  return NextResponse.json({ url: session.url });
+  return NextResponse.json({
+    clientSecret,
+    subscriptionId: subscription.id,
+    plan,
+  });
 }

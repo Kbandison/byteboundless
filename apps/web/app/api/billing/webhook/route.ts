@@ -144,6 +144,68 @@ async function handleCheckoutCompleted(
 }
 
 /**
+ * PaymentIntent succeeded — fires for our custom-checkout overage
+ * purchases (created via /api/billing/checkout). Reads supabase_uid +
+ * credits from PI metadata and credits the user's account.
+ *
+ * Subscription PaymentIntents also fire this event, but we ignore them
+ * here (kind metadata is missing) — subscriptions are handled via the
+ * customer.subscription.* events instead.
+ */
+async function handlePaymentIntentSucceeded(
+  supabase: ReturnType<typeof getAdminClient>,
+  paymentIntent: Stripe.PaymentIntent
+) {
+  // Filter to our overage purchases — subscription PIs don't have this tag
+  if (paymentIntent.metadata?.kind !== "overage_credits") return;
+
+  const userId = paymentIntent.metadata?.supabase_uid;
+  const credits = parseInt(paymentIntent.metadata?.credits || "0", 10);
+
+  if (!userId || credits <= 0) {
+    console.error(
+      `[Webhook] Overage PI ${paymentIntent.id} missing user/credits metadata`
+    );
+    return;
+  }
+
+  // Read current balance
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("overage_credits")
+    .eq("id", userId)
+    .single();
+  const currentCredits =
+    (profile as { overage_credits: number } | null)?.overage_credits ?? 0;
+
+  // Credit the user
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({ overage_credits: currentCredits + credits } as never)
+    .eq("id", userId);
+  if (updateError) throw new Error(`Failed to credit user: ${updateError.message}`);
+
+  // Record the purchase. Use payment_intent ID in stripe_session_id slot
+  // (the column is named "session" but functions as a generic Stripe ID
+  // for idempotency). The unique index on this column blocks duplicates.
+  const { error: purchaseError } = await supabase
+    .from("overage_purchases")
+    .insert({
+      user_id: userId,
+      credits,
+      amount_cents: paymentIntent.amount,
+      stripe_session_id: paymentIntent.id,
+    } as never);
+  if (purchaseError && purchaseError.code !== "23505") {
+    throw new Error(`Failed to record purchase: ${purchaseError.message}`);
+  }
+
+  console.log(
+    `[Webhook] Credited ${credits} overage results to user ${userId} from PI ${paymentIntent.id}`
+  );
+}
+
+/**
  * Subscription updated — fires on plan changes, quantity changes, renewals
  * (with `status: 'active'`), and cancel-at-period-end flips. We remap the
  * user's plan from the subscription's current price.
@@ -287,7 +349,17 @@ export async function POST(request: Request) {
   try {
     switch (event.type) {
       case "checkout.session.completed":
+        // Legacy path — kept for any old/in-flight Checkout Sessions.
+        // New flows use payment_intent.succeeded (overage) and
+        // customer.subscription.* (plans).
         await handleCheckoutCompleted(supabase, event.data.object as Stripe.Checkout.Session);
+        break;
+
+      case "payment_intent.succeeded":
+        await handlePaymentIntentSucceeded(
+          supabase,
+          event.data.object as Stripe.PaymentIntent
+        );
         break;
 
       case "customer.subscription.created":

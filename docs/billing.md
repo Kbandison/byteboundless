@@ -1,8 +1,15 @@
 # Billing Setup Guide
 
-ByteBoundless uses Stripe for all payment handling: subscription signups
-(Pro, Agency), one-time overage credit purchases, and self-service
-cancellation via the Stripe Customer Portal.
+ByteBoundless uses Stripe for all payment handling. **Checkout is custom**
+— we render Stripe's Payment Element inside our own `/checkout` page
+instead of redirecting to Stripe's hosted checkout. The Payment Element
+keeps us PCI compliant (it's a Stripe-iframed component) while letting
+us own the layout, branding, copy, and order summary.
+
+Cancellation, plan switching, and payment method updates still go through
+Stripe's hosted Billing Portal — those flows are complex and Stripe's
+hosted UI is significantly easier to maintain than building them
+ourselves.
 
 The code is already wired up. This doc covers the one-time dashboard
 configuration you need to do in Stripe before the integration works, plus
@@ -11,14 +18,19 @@ how to test it and what to expect during beta.
 ## Architecture overview
 
 ```
-User clicks "Upgrade to Pro"
-  → POST /api/billing/subscribe
-  → Creates Stripe Checkout session (mode: subscription)
-  → Redirects to checkout.stripe.com
-  → User completes payment
-  → Stripe fires checkout.session.completed + customer.subscription.created
-  → /api/billing/webhook verifies signature, dispatches to handler
-  → Profile.plan flips to 'pro' + stripe_subscription_id set
+User clicks "Upgrade to Pro" (sidebar / settings / results lock / pricing)
+  → router.push('/checkout?type=subscription&plan=pro')
+  → /checkout mounts, POSTs to /api/billing/subscribe
+  → Subscribe route creates Subscription with payment_behavior=default_incomplete
+  → Returns clientSecret from latest_invoice.payment_intent
+  → /checkout renders <Elements stripe={...} options={{clientSecret}}>
+    with custom <PaymentElement /> + order summary
+  → User fills card info (Stripe iframe), clicks Subscribe
+  → stripe.confirmPayment() with return_url = /settings?subscribe=success
+  → Stripe processes payment, redirects browser to return_url
+  → Webhook fires customer.subscription.created + .updated
+  → /api/billing/webhook verifies signature, flips profile.plan to 'pro'
+  → Settings page reads ?subscribe=success and shows confirmation toast
 ```
 
 ```
@@ -33,10 +45,12 @@ User clicks "Manage Billing" or "Downgrade"
 
 ```
 User buys 200 extra results
-  → POST /api/billing/checkout (mode: payment)
-  → Redirects to checkout.stripe.com
-  → User completes payment
-  → Stripe fires checkout.session.completed (mode: payment)
+  → router.push('/checkout?type=overage')
+  → /checkout POSTs to /api/billing/checkout
+  → Returns clientSecret from a one-time PaymentIntent
+  → Same custom Payment Element flow as subscription
+  → return_url = /settings?purchase=success
+  → Stripe fires payment_intent.succeeded
   → Webhook credits overage_credits + records overage_purchase
 ```
 
@@ -103,7 +117,8 @@ For each environment where webhooks should fire:
 1. https://dashboard.stripe.com/webhooks → Add endpoint
 2. Endpoint URL: `https://byteboundless.com/api/billing/webhook`
 3. Events to send:
-   - `checkout.session.completed`
+   - `payment_intent.succeeded` ← required for custom checkout overage purchases
+   - `checkout.session.completed` ← legacy / safety net
    - `customer.subscription.created`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
@@ -129,6 +144,7 @@ its signing secret in the Preview environment on Vercel.
 | Variable | Where it comes from |
 |---|---|
 | `STRIPE_SECRET_KEY` | Developers → API keys (`sk_live_...` in production, `sk_test_...` in test) |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Developers → API keys, the publishable key (`pk_live_...` / `pk_test_...`). **REQUIRED** for the custom checkout — the browser SDK uses it to mount the Payment Element. Safe to expose to the client (it can only initiate payments, not capture them). |
 | `STRIPE_WEBHOOK_SECRET` | Your webhook endpoint's signing secret (`whsec_...`) |
 | `STRIPE_PRO_PRICE_ID` | The price ID for Pro from step 1 |
 | `STRIPE_AGENCY_PRICE_ID` | The price ID for Agency from step 1 |
@@ -191,9 +207,9 @@ have to touch the code for these flows:
 
 | Event | What we do |
 |---|---|
-| `checkout.session.completed` (mode=payment) | Credit `overage_credits`, insert `overage_purchases` row (idempotent via session ID) |
-| `checkout.session.completed` (mode=subscription) | Retrieve subscription, set `profiles.plan` + `profiles.stripe_subscription_id`, clear `plan_expires_at` (beta overrides) |
-| `customer.subscription.created` | Same as above — redundant path for safety |
+| `payment_intent.succeeded` (kind=overage_credits) | Credit `overage_credits`, insert `overage_purchases` row. Idempotent via unique constraint on `stripe_session_id` (which holds the PI ID). |
+| `checkout.session.completed` (legacy) | Kept for any old/in-flight Checkout Sessions from before the custom checkout migration. Still handles both `mode: payment` (overage) and `mode: subscription` correctly. |
+| `customer.subscription.created` | Set `profiles.plan` + `profiles.stripe_subscription_id`, clear `plan_expires_at` (beta overrides) |
 | `customer.subscription.updated` | Remap plan from the current price ID. Status `active` or `trialing` → set plan; `past_due` → grace window, keep plan; `canceled` / `incomplete_expired` / `unpaid` → revert to free |
 | `customer.subscription.deleted` | Revert plan to free, clear `stripe_subscription_id` |
 | `invoice.payment_failed` | Logged only — `customer.subscription.updated` with `past_due` status handles the state transition |

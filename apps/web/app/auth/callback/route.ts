@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -13,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 const NEXT_ALLOWLIST = [
   "/dashboard",
   "/auth/checkout",
+  "/checkout",
   "/lists",
   "/settings",
 ];
@@ -39,6 +41,11 @@ export async function GET(request: Request) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`);
     }
+    // Failed code exchange — log to Sentry so we can spot patterns
+    // (expired codes, revoked tokens, Supabase outages, etc.)
+    Sentry.captureException(error, {
+      tags: { route: "auth/callback", reason: "exchange_failed" },
+    });
   }
 
   // Auth error — redirect to login with error

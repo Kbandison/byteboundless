@@ -12,6 +12,8 @@
     "@byteboundless/supabase": "*",
     "@byteboundless/types": "*",
     "@sentry/nextjs": "^10.48.0",
+    "@stripe/react-stripe-js": "^6.1.0",
+    "@stripe/stripe-js": "^9.1.0",
     "@supabase/ssr": "^0.6",
     "@supabase/supabase-js": "^2",
     "class-variance-authority": "^0.7",

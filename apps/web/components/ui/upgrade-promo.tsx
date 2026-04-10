@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Sparkles, ArrowUpRight, X, Crown, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import { Sparkles, ArrowUpRight, X, Crown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface PromoConfig {
@@ -63,9 +63,9 @@ function daysRemaining(iso: string | null): number | null {
 }
 
 export function UpgradePromo({ collapsed = false }: UpgradePromoProps) {
+  const router = useRouter();
   const [profile, setProfile] = useState<ProfileState | null>(null);
   const dismissed = useSyncExternalStore(subscribeDismissed, getDismissed, getDismissedSSR);
-  const [upgradeLoading, setUpgradeLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,17 +172,12 @@ export function UpgradePromo({ collapsed = false }: UpgradePromoProps) {
     return (
       <button
         type="button"
-        onClick={() => startUpgrade(targetPlan, setUpgradeLoading)}
-        disabled={upgradeLoading}
-        className="flex items-center justify-center w-full p-2 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition-colors disabled:opacity-50"
+        onClick={() => router.push(`/checkout?type=subscription&plan=${targetPlan}`)}
+        className="flex items-center justify-center w-full p-2 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition-colors"
         title={promo.cta}
         aria-label={promo.cta}
       >
-        {upgradeLoading ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <Sparkles className="w-4 h-4" />
-        )}
+        <Sparkles className="w-4 h-4" />
       </button>
     );
   }
@@ -213,39 +208,11 @@ export function UpgradePromo({ collapsed = false }: UpgradePromoProps) {
       </p>
       <button
         type="button"
-        onClick={() => startUpgrade(targetPlan, setUpgradeLoading)}
-        disabled={upgradeLoading}
-        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-accent)] hover:underline disabled:opacity-50"
+        onClick={() => router.push(`/checkout?type=subscription&plan=${targetPlan}`)}
+        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-accent)] hover:underline"
       >
-        {upgradeLoading ? (
-          <Loader2 className="w-3 h-3 animate-spin" />
-        ) : null}
         {promo.cta} <ArrowUpRight className="w-3 h-3" />
       </button>
     </div>
   );
-}
-
-async function startUpgrade(
-  plan: "pro" | "agency",
-  setLoading: (v: boolean) => void
-) {
-  setLoading(true);
-  try {
-    const res = await fetch("/api/billing/subscribe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      toast.error(data.error || "Failed to start checkout");
-      return;
-    }
-    if (data.url) window.location.href = data.url;
-  } catch {
-    toast.error("Failed to start checkout");
-  } finally {
-    setLoading(false);
-  }
 }

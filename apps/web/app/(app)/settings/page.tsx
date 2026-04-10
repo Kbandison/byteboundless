@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   User,
   CreditCard,
@@ -54,6 +55,7 @@ const NAV_ITEMS: { key: Section; label: string; icon: typeof User }[] = [
 ];
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [activeSection, setActiveSection] = useState<Section>("profile");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -73,7 +75,6 @@ export default function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userId, setUserId] = useState("");
   const [overageCredits, setOverageCredits] = useState(0);
-  const [buyingCredits, setBuyingCredits] = useState(false);
   const [notifyOnComplete, setNotifyOnComplete] = useState(true);
   const [savingNotify, setSavingNotify] = useState(false);
   const [hasSubscription, setHasSubscription] = useState(false);
@@ -608,29 +609,10 @@ export default function SettingsPage() {
                     </span>
                   </div>
                   <button
-                    onClick={async () => {
-                      setBuyingCredits(true);
-                      try {
-                        const res = await fetch("/api/billing/checkout", {
-                          method: "POST",
-                        });
-                        const data = await res.json();
-                        if (data.url) {
-                          window.location.href = data.url;
-                        } else {
-                          toast.error(data.error || "Failed to start checkout");
-                        }
-                      } catch {
-                        toast.error("Network error");
-                      }
-                      setBuyingCredits(false);
-                    }}
-                    disabled={buyingCredits}
-                    className="w-full mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-[var(--color-accent)] text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 disabled:opacity-50 transition-all"
+                    onClick={() => router.push("/checkout?type=overage")}
+                    className="w-full mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-[var(--color-accent)] text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all"
                   >
-                    {buyingCredits
-                      ? "Redirecting to checkout..."
-                      : "Buy 200 Extra Results \u2014 $4"}
+                    Buy 200 Extra Results &mdash; $4
                   </button>
                 </div>
               )}
@@ -764,46 +746,33 @@ function PlanChangeButton({
   targetPlan: "free" | "pro" | "agency";
   currentPlan: "free" | "pro" | "agency";
 }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const tierOrder = { free: 0, pro: 1, agency: 2 } as const;
   const isUpgrade = tierOrder[targetPlan] > tierOrder[currentPlan];
 
   async function handleClick() {
+    // Upgrade: navigate to our custom checkout page
+    if (isUpgrade && targetPlan !== "free") {
+      router.push(`/checkout?type=subscription&plan=${targetPlan}`);
+      return;
+    }
+
+    // Downgrade / cancel: route through the Stripe Billing Portal so the
+    // user gets Stripe's hosted UI for cancellation (with retention prompts,
+    // cancel_at_period_end handling, etc.). Portal changes come back via
+    // webhook events the /api/billing/webhook handler already processes.
     setLoading(true);
     try {
-      // Downgrade / cancel: route through the Stripe Billing Portal so the
-      // user gets Stripe's hosted UI for cancellation (with retention prompts,
-      // cancel_at_period_end handling, etc.). Portal changes come back via
-      // webhook events the /api/billing/webhook handler already processes.
-      if (!isUpgrade) {
-        const res = await fetch("/api/billing/portal", { method: "POST" });
-        const data = await res.json();
-        if (!res.ok) {
-          toast.error(data.error || "Failed to open billing portal");
-          return;
-        }
-        if (data.url) window.location.href = data.url;
-        return;
-      }
-
-      // Upgrade: create a subscription checkout session
-      if (targetPlan === "free") return; // shouldn't happen — free isn't an upgrade
-
-      const res = await fetch("/api/billing/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: targetPlan }),
-      });
+      const res = await fetch("/api/billing/portal", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Failed to start checkout");
+        toast.error(data.error || "Failed to open billing portal");
         return;
       }
-      if (data.url) {
-        window.location.href = data.url;
-      }
+      if (data.url) window.location.href = data.url;
     } catch {
-      toast.error("Failed to start checkout");
+      toast.error("Failed to open billing portal");
     } finally {
       setLoading(false);
     }

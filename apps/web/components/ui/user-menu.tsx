@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Settings, BookOpen, LogOut, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-export function UserMenu() {
+export function UserMenu({ collapsed = false }: { collapsed?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const [initials, setInitials] = useState("");
   const [email, setEmail] = useState("");
@@ -39,20 +39,31 @@ export function UserMenu() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
+  // In sidebar (especially when collapsed), the menu opens upward and to the right
+  // so it doesn't get clipped by the sidebar bounds.
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative w-full">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[var(--color-bg-secondary)] transition-colors duration-150"
+        className={
+          collapsed
+            ? "flex items-center justify-center w-full p-2 rounded-lg hover:bg-[var(--color-bg-secondary)] transition-colors duration-150"
+            : "flex items-center gap-3 w-full px-2 py-2 rounded-lg hover:bg-[var(--color-bg-secondary)] transition-colors duration-150"
+        }
       >
-        <div className="w-8 h-8 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center text-xs font-semibold">
+        <div className="w-8 h-8 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center text-xs font-semibold shrink-0">
           {initials || "?"}
         </div>
-        <ChevronDown className="w-3 h-3 text-[var(--color-text-dim)] hidden sm:block" />
+        {!collapsed && (
+          <>
+            <span className="flex-1 text-left text-sm font-medium text-[var(--color-text-primary)] truncate">{email}</span>
+            <ChevronDown className="w-3 h-3 text-[var(--color-text-dim)] shrink-0" />
+          </>
+        )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-xl overflow-hidden z-50">
+        <div className="absolute left-0 right-0 bottom-full mb-2 w-64 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-xl overflow-hidden z-50">
           {/* User info */}
           <div className="px-4 py-3 border-b border-[var(--color-border)]">
             <p className="text-sm font-medium truncate">{email}</p>

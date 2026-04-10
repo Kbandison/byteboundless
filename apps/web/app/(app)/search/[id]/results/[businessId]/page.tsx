@@ -168,7 +168,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left — Business Data */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+          <div className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-[0_4px_24px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_24px_-12px_rgba(0,0,0,0.4)]">
             <div className="mb-4">
               <h1 className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">{lead.name}</h1>
               <p className="text-sm text-[var(--color-text-secondary)] mt-1">{lead.category}</p>
@@ -509,7 +509,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
         {/* Right — Score + AI Pitch */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+          <div className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-[0_4px_24px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_24px_-12px_rgba(0,0,0,0.4)]">
             <div className="flex items-start gap-5">
               <ScoreBadgeLarge score={lead.score} />
               <div className="flex-1">
@@ -529,8 +529,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
 
-          {/* AI Pitch */}
-          <div className="p-6 rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-accent-2)]">
+          {/* AI Pitch — premium card */}
+          <div className="p-6 rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-accent-2)] shadow-[0_8px_32px_-12px_var(--color-accent-3)]">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-[var(--color-accent)]" />

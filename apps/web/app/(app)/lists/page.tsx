@@ -133,9 +133,9 @@ export default function SavedListsPage() {
             <button
               onClick={handleCreate}
               disabled={creating || !newName.trim()}
-              className="px-5 py-2.5 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-50 font-medium"
+              className="inline-flex items-center justify-center min-w-[100px] px-5 py-2.5 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-50 font-medium"
             >
-              {creating ? "Creating..." : "Create"}
+              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create"}
             </button>
             <button
               onClick={() => { setShowCreate(false); setNewName(""); }}

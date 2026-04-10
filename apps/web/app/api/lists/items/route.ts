@@ -6,9 +6,36 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { listId, businessId } = await request.json();
-  if (!listId || !businessId) {
-    return NextResponse.json({ error: "listId and businessId required" }, { status: 400 });
+  const body = await request.json();
+  const { listId, businessId, businessIds } = body as {
+    listId?: string;
+    businessId?: string;
+    businessIds?: string[];
+  };
+
+  if (!listId) {
+    return NextResponse.json({ error: "listId required" }, { status: 400 });
+  }
+
+  // Bulk insert path
+  if (Array.isArray(businessIds) && businessIds.length > 0) {
+    const rows = businessIds.map((id) => ({ list_id: listId, business_id: id }));
+    const { error } = await supabase
+      .from("saved_list_items")
+      .upsert(rows as never, { onConflict: "list_id,business_id", ignoreDuplicates: true });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    await supabase
+      .from("saved_lists")
+      .update({ updated_at: new Date().toISOString() } as never)
+      .eq("id", listId);
+    return NextResponse.json({ success: true, count: businessIds.length });
+  }
+
+  // Single insert path
+  if (!businessId) {
+    return NextResponse.json({ error: "businessId or businessIds required" }, { status: 400 });
   }
 
   const { error } = await supabase
@@ -22,7 +49,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Update list's updated_at
   await supabase
     .from("saved_lists")
     .update({ updated_at: new Date().toISOString() } as never)

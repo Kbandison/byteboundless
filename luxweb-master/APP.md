@@ -483,32 +483,53 @@ These are utility patterns used across any app layout above. Use them liberally.
 
 ## Command Palette (Cmd+K)
 
-Keyboard-first navigation overlay. Triggered globally, fuzzy-searchable, lists navigation destinations and actions.
+Keyboard-first navigation overlay. Triggered globally, fuzzy-searchable, lists navigation destinations, actions, **and the user's real data**.
 
 **Implementation:**
 - Use the `cmdk` library (by paco coursey).
 - Register a global `keydown` listener for `Cmd+K` / `Ctrl+K`.
 - Render as a fixed overlay with backdrop blur.
-- Group items by category: Navigation, Actions.
+- Group items by category: Navigation, **Recent records**, **Saved/Pinned**, **Top results across user data**, Actions.
 - Style selected items with `data-[selected=true]:bg-accent/10`.
 - Include keyboard hints in the footer: `↑↓` navigate, `↵` select, `esc` close.
 - Include theme toggle and sign-out as actions.
 - Every app with 5+ routes MUST have one.
+- **Critical:** the palette MUST search the user's real data, not just static nav items. A "Search…" button that just opens a static palette is misleading. Fetch recent records, saved items, and top results when the palette opens; rebuild on each open to stay fresh after navigations.
 
 ```tsx
-// Structure
+// Structure with real data
 <Command>
-  <Command.Input placeholder="Search pages, actions..." />
+  <Command.Input placeholder="Search leads, lists, searches, pages..." />
   <Command.List>
     <Command.Group heading="Navigation">
       <Command.Item onSelect={() => router.push("/dashboard")}>Dashboard</Command.Item>
     </Command.Group>
+    {recentSearches.length > 0 && (
+      <Command.Group heading="Recent Searches">
+        {recentSearches.map((s) => (
+          <Command.Item key={s.id} value={`search ${s.query} ${s.location}`} onSelect={() => router.push(`/search/${s.id}`)}>
+            {s.query} in {s.location}
+          </Command.Item>
+        ))}
+      </Command.Group>
+    )}
+    {topRecords.length > 0 && (
+      <Command.Group heading="Top Records">
+        {topRecords.map((r) => (
+          <Command.Item key={r.id} value={`record ${r.name} ${r.category}`} onSelect={() => router.push(`/records/${r.id}`)}>
+            {r.name}
+          </Command.Item>
+        ))}
+      </Command.Group>
+    )}
     <Command.Group heading="Actions">
       <Command.Item>Toggle dark mode</Command.Item>
     </Command.Group>
   </Command.List>
 </Command>
 ```
+
+The `value` prop on each `Command.Item` controls what cmdk fuzzy-matches against — include searchable terms (name + category + tags) so users can find a record by any of its attributes.
 
 ## User Avatar Menu
 
@@ -626,6 +647,181 @@ Support system preference + manual toggle. Persist to localStorage.
 - Toggle button in both desktop nav and mobile menu.
 - Dark palette shifts: backgrounds to near-black, text to near-white, accent to brighter variant for contrast.
 
+## Collapsible Sidebar Navigation
+
+Sidebar nav scales better than top nav for apps with 4+ destinations. The collapse toggle should live **next to the title in the header**, not the footer — users expect it there and the footer is for account/settings actions.
+
+**Implementation:**
+- Fixed sidebar on the left, full viewport height. Mobile collapses to a top bar + drawer.
+- Two widths: expanded (`240px`) and collapsed icon-only (`72px`).
+- Persist collapse state to `localStorage` and sync with a CSS variable on `<html>` so the main content's `padding-left` updates without a re-render:
+  ```ts
+  document.documentElement.style.setProperty("--app-sidebar-w", collapsed ? "72px" : "240px");
+  ```
+  Then in the layout: `<main className="md:pl-[var(--app-sidebar-w,240px)] transition-[padding-left]">`.
+- Use `useSyncExternalStore` (NOT `useState` + `useEffect`) to read localStorage. The new React lint rules forbid setState-in-effect; useSyncExternalStore is the blessed pattern for external state.
+- Collapse toggle: a small chevron button in the header next to the logo, **opacity-0 by default, opacity-100 on header hover** so it doesn't add visual noise. When collapsed, swap to a small floating circle button positioned on the sidebar's right edge (`-right-3 absolute`) so users can always find it.
+- Section structure: Logo + collapse toggle → Primary CTA (e.g., "New Search") → Nav links → Footer area (upgrade promo, search button, theme toggle, user menu).
+- Active link state: `bg-accent/10 text-accent`.
+- Icons stay visible when collapsed; labels hidden via conditional render. Add `title` attributes for tooltips.
+- The sidebar IS the primary navigation when collapsed — make sure every reachable destination has an icon, including admin links and any conditional links.
+
+## Row Selection + Bulk Actions
+
+Tables with 50+ rows need bulk actions. The pattern: checkbox column + select-all in the header + floating action bar at the bottom that appears when at least one row is selected.
+
+**Implementation:**
+- Add a `32px` checkbox column as the first column. The header checkbox is tristate: unchecked, indeterminate (some selected), checked (all visible selected).
+  ```tsx
+  <input
+    type="checkbox"
+    checked={allVisibleSelected}
+    ref={(el) => { if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected; }}
+    onChange={toggleSelectAll}
+  />
+  ```
+- Track selection in a `Set<string>` of IDs. Selection survives across filtering — the user can filter to "hot leads", select 10, change the filter, and selection is preserved.
+- **Row click should still navigate to the detail page.** To avoid the checkbox interfering: render the row as a `<div>` with an absolutely-positioned `<Link className="absolute inset-0">` overlay underneath the cells. The checkbox cell gets `relative z-10` to sit above the link; other cells get `relative pointer-events-none` so clicks fall through to the link.
+- Floating action bar: `fixed bottom-6 left-1/2 -translate-x-1/2 z-40`, rounded pill with shadow. Show the count, a vertical divider, then action buttons (Save to list, Mark contacted, Export, etc.), then a clear-selection X button.
+- When the sidebar is present, offset the action bar so it's centered over the *content* area, not the viewport: `md:left-[calc(var(--app-sidebar-w,240px)/2+50%)] md:-translate-x-1/2`.
+- Bulk actions should fan out via `Promise.allSettled` and report partial failures: "Marked 8, failed 2".
+- For the "Save to list" action, open a modal list-picker with an option to create a new list inline.
+- Bulk endpoints accept either `businessId` (single) or `businessIds[]` (bulk) via the same route. Use `upsert` with `{ ignoreDuplicates: true }` so re-saving is idempotent.
+
+## Sparklines + Delta Indicators
+
+Stat cards become 10× more useful when they show direction, not just a snapshot. Add `+12 this week` deltas and tiny inline sparklines.
+
+**Implementation:**
+- Compute weekly buckets server-side for the sparkline (one number per day, oldest → newest).
+- Build a tiny SVG sparkline component (no chart library needed):
+  ```tsx
+  export function Sparkline({ data, width = 80, height = 24, color = "var(--color-accent)" }) {
+    const reactId = useId();
+    const max = Math.max(...data, 1);
+    const min = Math.min(...data, 0);
+    const stepX = width / (data.length - 1);
+    const points = data.map((v, i) => [i * stepX, height - ((v - min) / (max - min || 1)) * height]);
+    const pathD = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x},${y}`).join(" ");
+    const areaD = `${pathD} L${width},${height} L0,${height} Z`;
+    const gradId = `sparkline-${reactId.replace(/:/g, "")}`;
+    return (
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <defs>
+          <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaD} fill={`url(#${gradId})`} />
+        <path d={pathD} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  ```
+- **Critical:** use `useId()` for the gradient ID, NOT `Math.random()`. React's purity rules forbid impure calls in render and the lint rule will fail the build.
+- Delta pill: `<span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600">+12 this week</span>`
+- Show the delta only when it's non-zero — a "+0 this week" pill is depressing.
+
+## Shortcuts Help Overlay
+
+A `?` keyboard shortcut that opens a modal listing every shortcut in the app, grouped by category.
+
+**Implementation:**
+- Listen for `?` globally (skip when an input/textarea/contenteditable is focused).
+- Modal layout: 2-column grid grouped by category (Navigation, Search & Results, Help).
+- Each row: action label on the left, kbd badges on the right.
+- Support two-key sequences (`g d` → dashboard, `g l` → lists, `g s` → settings) with a 1000ms timeout between keys.
+- The `/` key should focus an in-page `input[data-search-input]` if one exists, otherwise dispatch a synthetic `Cmd+K` event to open the command palette.
+- Mount globally next to the command palette so it's available on every page.
+
+## Shadow Hierarchy
+
+Premium / hero cards get elevated shadows. Secondary cards stay flat with borders only. Mixing shadows on every card flattens the visual hierarchy.
+
+**Implementation:**
+- Premium card: `shadow-[0_4px_24px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_24px_-12px_rgba(0,0,0,0.4)]`
+- Accent/highlight card (e.g. AI output, featured tier): `shadow-[0_8px_32px_-12px_var(--color-accent-3)]`
+- Secondary card: `border border-[var(--color-border)]` only, no shadow.
+- Custom Tailwind shadow values let you tune the spread without using the default shadow scale, which is too aggressive for dark mode.
+- Apply shadows to: the headline stat on the dashboard, the lead/record detail main card, AI-generated output panels, the featured pricing tier. NOT to: list items, secondary stat tiles, filter chips.
+
+## Page Transitions
+
+Marketing pages and app pages need different transition speeds. Marketing can be slow and dramatic; app pages need to feel snappy.
+
+**Implementation:**
+- Use Next.js `template.tsx` (NOT `layout.tsx`) so the component re-renders on every navigation.
+- Root `app/template.tsx`: longer transition for marketing (`y: 12, duration: 0.4`).
+- Group-specific `app/(app)/template.tsx`: snappy fast transition (`y: 4, duration: 0.18`).
+  ```tsx
+  "use client";
+  import { motion } from "framer-motion";
+  export default function AppTemplate({ children }) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {children}
+      </motion.div>
+    );
+  }
+  ```
+- The cubic-bezier `[0.22, 1, 0.36, 1]` is the "ease-out-expo" curve — it feels native and decelerates correctly.
+
+## Upgrade Promo Card
+
+Surface upgrade prompts to non-top-tier users from a persistent location (sidebar footer is ideal). Tier-aware: free users see Pro, Pro users see Agency, top-tier users see nothing.
+
+**Implementation:**
+- Fetch the user's plan once on mount. Pick a promo config keyed by current plan; return null for the top tier.
+- Make it dismissible. Persist dismissal to `localStorage` using `useSyncExternalStore` — NOT setState-in-effect.
+- Collapsed sidebar variant: just the icon (`Sparkles`) in an accent-tinted square button.
+- Expanded variant: gradient background (`bg-gradient-to-br from-accent-2 to-bg-tertiary`), badge with target tier, headline, body, accent CTA link, dismiss X in the top-right corner.
+- Copy should sell the *next* tier's specific gains, not generic "upgrade for more". For free → pro: "Saved lists, CSV export, Lighthouse audits". For pro → agency: "5 seats, 200 searches/mo, unlimited AI pitches".
+
+```tsx
+const PROMOS = {
+  free: { badge: "Pro", title: "Unlock the full pipeline", body: "...", cta: "Upgrade to Pro" },
+  pro: { badge: "Agency", title: "Scale with your team", body: "...", cta: "Upgrade to Agency" },
+};
+// return null for "agency" / top tier
+```
+
+## Button Loading States
+
+Every button that triggers an async action MUST show inline feedback. The pattern is consistent across the app.
+
+**Implementation:**
+- `disabled={loading}` to prevent double-submits.
+- Loading state replaces the button's normal content with `<Loader2 className="w-4 h-4 animate-spin" />`.
+- Set a `min-w-[Npx]` on the button so it doesn't collapse when its label gets replaced by the spinner.
+- For destructive actions, also disable surrounding cancel buttons during loading.
+- Wrap critical actions in toast notifications: `toast.success("Saved")` on success, `toast.error("Failed")` on failure.
+- Pattern:
+  ```tsx
+  <button
+    onClick={handleAction}
+    disabled={loading}
+    className="inline-flex items-center justify-center min-w-[100px] disabled:opacity-50 ..."
+  >
+    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+  </button>
+  ```
+
+## React 19 / React Compiler gotchas
+
+The new lint rules ship with React 19 / React Compiler will fail the build for patterns that used to be fine. Cheat sheet:
+
+- **`react-hooks/set-state-in-effect`** — calling `setState` synchronously in a `useEffect` body is forbidden. Fix: use `useSyncExternalStore` for hydration-from-localStorage patterns. For data fetching, the setState calls happen *inside* an async IIFE inside the effect, which is allowed.
+- **`react-hooks/purity`** — `Math.random()`, `Date.now()`, etc. cannot be called during render. Use `useId()` for stable per-instance IDs.
+- **`react-hooks/preserve-manual-memoization`** — manual `useMemo` / `useCallback` deps must match what the compiler infers. Easiest fix: trust the compiler and remove the manual memoization, or fix the deps to match.
+- **`react-hooks/immutability`** — `window.location.hash = ...` style assignments inside render or callbacks trigger this. Move into an effect.
+
+These rules feel strict but they're catching real bugs before they ship.
+
 ---
 
 # Archetype → App Chrome Translation
@@ -669,11 +865,16 @@ Beyond the LUXWEB.md anti-slop list, these are specific to app surfaces:
 13. **Dashboards without at least ONE oversized display-font moment** (big stat, page title, section header)
 14. **Settings pages that require scrolling through all sections in one column**
 15. **Tables without hover states, sort indicators, or selection behavior defined**
-16. **Missing `Cmd+K` command palette when app has 5+ routes**
-17. **Generic page titles ("Dashboard", "Settings") in body font at 18px** — must be display font at 32–56px
-18. **Using `h-screen` on any app surface** — breaks on iOS. Always `min-h-[100dvh]`.
-19. **Data viz with default chart library colors**
-20. **Dropdowns without keyboard navigation**
+16. **Missing `Cmd+K` command palette when app has 5+ routes**, OR a command palette that only searches static nav items instead of the user's real data
+17. **Tables with 50+ rows and no bulk actions** — checkbox column + floating action bar minimum
+18. **Stat cards without delta/trend indicators** — a number with no direction is just trivia
+19. **Premium / hero cards without elevated shadows** — flat cards everywhere flatten the hierarchy
+20. **Buttons that trigger async actions without inline loading state** — every async button must disable + show spinner
+21. **Sidebar collapse toggle in the footer** — put it in the header next to the title where users expect it
+22. **Generic page titles ("Dashboard", "Settings") in body font at 18px** — must be display font at 32–56px
+23. **Using `h-screen` on any app surface** — breaks on iOS. Always `min-h-[100dvh]`.
+24. **Data viz with default chart library colors**
+25. **Dropdowns without keyboard navigation**
 
 ---
 

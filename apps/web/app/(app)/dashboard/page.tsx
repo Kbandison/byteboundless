@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Target, Plus, Search, Users, Flame, ArrowRight, Zap, TrendingUp } from "lucide-react";
+import { Target, Plus, Search, Users, Flame, ArrowRight, Zap, TrendingUp, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
+import { Sparkline } from "@/components/ui/sparkline";
 import type { Database } from "@byteboundless/supabase";
 
 type ScrapeJob = Database["public"]["Tables"]["scrape_jobs"]["Row"];
@@ -76,6 +77,54 @@ export default async function DashboardPage() {
   const hasSearches = recentJobs.length > 0;
   const conversionRate = totalLeadCount > 0 ? Math.round((hotLeadCount / totalLeadCount) * 100) : 0;
 
+  // ── Weekly deltas + sparkline data ─────────────────────────────────────
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoIso = weekAgo.toISOString();
+
+  // Searches in the last 7 days (also used for sparkline buckets)
+  const { data: weekJobsRaw } = await supabase
+    .from("scrape_jobs")
+    .select("id, created_at")
+    .eq("user_id", user!.id)
+    .gte("created_at", weekAgoIso);
+  const weekJobs = (weekJobsRaw ?? []) as { id: string; created_at: string }[];
+  const searchesThisWeek = weekJobs.length;
+
+  // Build 7-day buckets (oldest → newest) for the searches sparkline
+  const dayBuckets: number[] = Array(7).fill(0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (const j of weekJobs) {
+    const d = new Date(j.created_at);
+    d.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((today.getTime() - d.getTime()) / 86_400_000);
+    if (diffDays >= 0 && diffDays < 7) {
+      // index 6 = today, index 0 = 6 days ago
+      dayBuckets[6 - diffDays]++;
+    }
+  }
+
+  // Leads added this week (across all this user's jobs)
+  let totalLeadsThisWeek = 0;
+  let hotLeadsThisWeek = 0;
+  if (jobIds.length > 0) {
+    const { count: tlw } = await supabase
+      .from("businesses")
+      .select("id", { count: "exact", head: true })
+      .in("job_id", jobIds)
+      .gte("created_at", weekAgoIso);
+    totalLeadsThisWeek = tlw ?? 0;
+
+    const { count: hlw } = await supabase
+      .from("businesses")
+      .select("id", { count: "exact", head: true })
+      .in("job_id", jobIds)
+      .gte("created_at", weekAgoIso)
+      .gte("lead_score", 80);
+    hotLeadsThisWeek = hlw ?? 0;
+  }
+
   const PLAYS = [
     { emoji: "🦷", title: "Dentists", query: "dentist", radius: "nearby" },
     { emoji: "🌿", title: "Landscapers", query: "landscaping", radius: "nearby" },
@@ -110,12 +159,20 @@ export default async function DashboardPage() {
 
       {/* Bento Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-        {/* Big stat — hot leads (spans 2 cols, 2 rows) */}
-        <div className="col-span-2 row-span-2 p-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col justify-between">
+        {/* Big stat — hot leads (spans 2 cols, 2 rows) — premium card with shadow */}
+        <div className="col-span-2 row-span-2 p-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col justify-between shadow-[0_4px_24px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_24px_-12px_rgba(0,0,0,0.4)]">
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <Flame className="w-5 h-5 text-emerald-500" />
-              <span className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium">Hot Leads</span>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Flame className="w-5 h-5 text-emerald-500" />
+                <span className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium">Hot Leads</span>
+              </div>
+              {hotLeadsThisWeek > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600">
+                  <ArrowUpRight className="w-3 h-3" />
+                  +{hotLeadsThisWeek} this week
+                </span>
+              )}
             </div>
             <p className="font-[family-name:var(--font-mono)] text-7xl md:text-8xl font-bold tracking-tight text-emerald-500">
               {hotLeadCount}
@@ -134,18 +191,31 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        {/* Total searches */}
-        <div className="p-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+        {/* Total searches with sparkline */}
+        <div className="p-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] relative overflow-hidden">
           <Search className="w-4 h-4 text-[var(--color-text-dim)] mb-3" />
-          <p className="font-[family-name:var(--font-mono)] text-3xl font-bold">{totalSearches ?? 0}</p>
-          <p className="text-xs text-[var(--color-text-dim)] mt-1">Searches</p>
+          <div className="flex items-end justify-between gap-2">
+            <p className="font-[family-name:var(--font-mono)] text-3xl font-bold">{totalSearches ?? 0}</p>
+            <Sparkline data={dayBuckets} className="opacity-70" />
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-xs text-[var(--color-text-dim)]">Searches</p>
+            {searchesThisWeek > 0 && (
+              <span className="text-[10px] font-medium text-emerald-600">+{searchesThisWeek} 7d</span>
+            )}
+          </div>
         </div>
 
         {/* Total leads */}
         <div className="p-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
           <Users className="w-4 h-4 text-[var(--color-text-dim)] mb-3" />
           <p className="font-[family-name:var(--font-mono)] text-3xl font-bold">{totalLeadCount}</p>
-          <p className="text-xs text-[var(--color-text-dim)] mt-1">Total Leads</p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-xs text-[var(--color-text-dim)]">Total Leads</p>
+            {totalLeadsThisWeek > 0 && (
+              <span className="text-[10px] font-medium text-emerald-600">+{totalLeadsThisWeek} 7d</span>
+            )}
+          </div>
         </div>
 
         {/* Conversion rate */}

@@ -13,17 +13,19 @@ import {
   Star,
   Download,
   Filter,
-  Loader2,
   Phone,
   Bookmark,
   CheckCircle2,
   Lock,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { usePlan, isPaidPlan } from "@/hooks/use-plan";
 import { TECH_STACK_COLORS, getScoreColor } from "@/lib/constants";
 import { ResultsSkeleton } from "@/components/ui/skeletons";
+import { ListPicker } from "@/components/ui/list-picker";
 import { createClient } from "@/lib/supabase/client";
 
 interface BusinessRow {
@@ -166,6 +168,23 @@ export default function ResultsPage({
   const [filterHasWebsite, setFilterHasWebsite] = useState(false);
   const [filterSaved, setFilterSaved] = useState(false);
   const [filterContacted, setFilterContacted] = useState(false);
+  // Bulk-action selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showListPicker, setShowListPicker] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState<"contact" | null>(null);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
 
   useEffect(() => {
     async function fetchData() {
@@ -286,6 +305,75 @@ export default function ResultsPage({
   }, [businesses, sortKey, sortDir, techFilter, scoreMin, filterHasPhone, filterHasEmail, filterHasWebsite, filterSaved, filterContacted, savedBizIds, contactedBizIds]);
 
   const hotCount = businesses.filter((b) => b.score >= 80).length;
+
+  // Bulk select-all (across the visible / filtered list)
+  const allVisibleSelected = sorted.length > 0 && sorted.every((b) => selectedIds.has(b.id));
+  const someVisibleSelected = sorted.some((b) => selectedIds.has(b.id));
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        sorted.forEach((b) => next.delete(b.id));
+      } else {
+        sorted.forEach((b) => next.add(b.id));
+      }
+      return next;
+    });
+  }
+
+  async function bulkMarkContacted() {
+    setBulkLoading("contact");
+    const ids = Array.from(selectedIds);
+    try {
+      const results = await Promise.allSettled(
+        ids.map((businessId) =>
+          fetch("/api/contacted", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ businessId, status: "contacted" }),
+          }).then((r) => { if (!r.ok) throw new Error(); })
+        )
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - ok;
+      if (ok > 0) {
+        setContactedBizIds((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.add(id));
+          return next;
+        });
+        setSavedBizIds((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.add(id));
+          return next;
+        });
+      }
+      if (failed > 0) toast.error(`Marked ${ok}, failed ${failed}`);
+      else toast.success(`Marked ${ok} as contacted`);
+      clearSelection();
+    } finally {
+      setBulkLoading(null);
+    }
+  }
+
+  function bulkExportCsv() {
+    const selectedRows = sorted.filter((b) => selectedIds.has(b.id));
+    const headers = ["Score", "Name", "Category", "Website", "Phone", "Emails", "Tech", "Socials", "Rating", "Reviews", "Address"];
+    const rows = selectedRows.map((b) =>
+      [b.score, b.name, b.category ?? "", b.website ?? "", b.phone ?? "", b.emailList.join("; "), b.techLabel, b.socials, b.rating, b.reviews, b.address ?? ""]
+        .map((v) => { const s = String(v).replace(/"/g, '""'); return /[",\n]/.test(s) ? `"${s}"` : s; })
+        .join(",")
+    );
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${jobQuery}-${jobLocation}-selected-${selectedRows.length}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${selectedRows.length} leads`);
+  }
 
   const availableTechs = [
     ...new Set(businesses.map((b) => b.tech)),
@@ -466,7 +554,15 @@ export default function ResultsPage({
       {/* Table */}
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] overflow-hidden">
         {/* Column headers */}
-        <div className="hidden md:grid grid-cols-[56px_1fr_90px_72px_60px_60px_60px_72px_40px] gap-3 px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]/30">
+        <div className="hidden md:grid grid-cols-[32px_56px_1fr_90px_72px_60px_60px_60px_72px_40px] gap-3 px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]/30 items-center">
+          <input
+            type="checkbox"
+            checked={allVisibleSelected}
+            ref={(el) => { if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected; }}
+            onChange={toggleSelectAll}
+            className="w-4 h-4 accent-[var(--color-accent)] cursor-pointer"
+            aria-label="Select all"
+          />
           <SortButton label="Score" sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
           <SortButton label="Business" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
           <span className="text-[11px] uppercase tracking-wider text-[var(--color-text-dim)] font-medium">Tech</span>
@@ -480,14 +576,34 @@ export default function ResultsPage({
 
         {/* Desktop rows */}
         <div className="hidden md:block divide-y divide-[var(--color-border)]/50">
-          {sorted.map((biz) => (
-            <Link
+          {sorted.map((biz) => {
+            const isSelected = selectedIds.has(biz.id);
+            return (
+            <div
               key={biz.id}
-              href={`/search/${id}/results/${biz.id}`}
-              className="grid grid-cols-[56px_1fr_90px_72px_60px_60px_60px_72px_40px] gap-3 px-5 py-4 items-center hover:bg-[var(--color-bg-secondary)]/30 transition-colors duration-200 cursor-pointer group"
+              className={cn(
+                "grid grid-cols-[32px_56px_1fr_90px_72px_60px_60px_60px_72px_40px] gap-3 px-5 py-4 items-center transition-colors duration-200 group relative",
+                isSelected
+                  ? "bg-[var(--color-accent)]/5 hover:bg-[var(--color-accent)]/10"
+                  : "hover:bg-[var(--color-bg-secondary)]/30"
+              )}
             >
-              <div><ScoreBadge score={biz.score} /></div>
-              <div className="min-w-0">
+              <div className="relative z-10" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSelect(biz.id)}
+                  className="w-4 h-4 accent-[var(--color-accent)] cursor-pointer"
+                  aria-label={`Select ${biz.name}`}
+                />
+              </div>
+              <Link
+                href={`/search/${id}/results/${biz.id}`}
+                className="absolute inset-0 z-0"
+                aria-label={`View ${biz.name}`}
+              />
+              <div className="relative pointer-events-none"><ScoreBadge score={biz.score} /></div>
+              <div className="min-w-0 relative pointer-events-none">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium truncate group-hover:text-[var(--color-accent)] transition-colors duration-200">{biz.name}</p>
                   {contactedBizIds.has(biz.id) && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
@@ -495,34 +611,35 @@ export default function ResultsPage({
                 </div>
                 <p className="text-xs text-[var(--color-text-dim)] truncate">{biz.category} &middot; {biz.address}</p>
               </div>
-              <div>
+              <div className="relative pointer-events-none">
                 {biz.website ? (
                   <TechChip tech={biz.tech} label={biz.techLabel} />
                 ) : (
                   <span className="text-[11px] px-2 py-0.5 rounded font-medium bg-red-500/15 text-red-600">No site</span>
                 )}
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 relative pointer-events-none">
                 <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                 <span className="text-sm text-[var(--color-text-secondary)]">{biz.rating}</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 relative pointer-events-none">
                 {biz.phone ? <Phone className="w-3.5 h-3.5 text-emerald-500" /> : <Phone className="w-3.5 h-3.5 text-[var(--color-text-dim)] opacity-30" />}
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 relative pointer-events-none">
                 <Mail className="w-3.5 h-3.5 text-[var(--color-text-dim)]" />
                 <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">{biz.emails}</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 relative pointer-events-none">
                 <Share2 className="w-3.5 h-3.5 text-[var(--color-text-dim)]" />
                 <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">{biz.socials}</span>
               </div>
-              <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">{biz.reviews}</span>
-              <div className="flex justify-end">
+              <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)] relative pointer-events-none">{biz.reviews}</span>
+              <div className="flex justify-end relative pointer-events-none">
                 <ExternalLink className="w-4 h-4 text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
               </div>
-            </Link>
-          ))}
+            </div>
+            );
+          })}
         </div>
 
         {/* Mobile card rows */}
@@ -569,6 +686,80 @@ export default function ResultsPage({
           ))}
         </div>
       </div>
+
+      {/* Floating bulk-action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 md:left-[calc(var(--app-sidebar-w,240px)/2+50%)] md:-translate-x-1/2">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-2xl">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-accent)]/10">
+              <span className="font-[family-name:var(--font-mono)] text-sm font-bold text-[var(--color-accent)]">
+                {selectedIds.size}
+              </span>
+              <span className="text-xs text-[var(--color-text-secondary)]">selected</span>
+            </div>
+            <div className="h-6 w-px bg-[var(--color-border)]" />
+            {paid && (
+              <button
+                onClick={() => setShowListPicker(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors"
+              >
+                <Bookmark className="w-3.5 h-3.5" />
+                Save to list
+              </button>
+            )}
+            {paid && (
+              <button
+                onClick={bulkMarkContacted}
+                disabled={bulkLoading === "contact"}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {bulkLoading === "contact" ? "Marking..." : "Mark contacted"}
+              </button>
+            )}
+            {paid ? (
+              <button
+                onClick={bulkExportCsv}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export
+              </button>
+            ) : (
+              <Link
+                href="/pricing"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-dim)] hover:text-[var(--color-accent)] transition-colors"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                Upgrade for bulk actions
+              </Link>
+            )}
+            <div className="h-6 w-px bg-[var(--color-border)]" />
+            <button
+              onClick={clearSelection}
+              className="p-1.5 rounded-lg text-[var(--color-text-dim)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+              aria-label="Clear selection"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List picker modal */}
+      <ListPicker
+        open={showListPicker}
+        onClose={() => setShowListPicker(false)}
+        businessIds={Array.from(selectedIds)}
+        onSaved={() => {
+          setSavedBizIds((prev) => {
+            const next = new Set(prev);
+            selectedIds.forEach((id) => next.add(id));
+            return next;
+          });
+          clearSelection();
+        }}
+      />
     </div>
   );
 }

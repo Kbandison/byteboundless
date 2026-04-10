@@ -39,7 +39,22 @@ export default async function DashboardPage() {
     .select("id", { count: "exact", head: true })
     .eq("user_id", user!.id);
 
-  const jobIds = recentJobs.map((j) => j.id);
+  // Get the latest completed job for the "View latest results" link
+  const { data: latestCompletedRaw } = await supabase
+    .from("scrape_jobs")
+    .select("id")
+    .eq("user_id", user!.id)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false })
+    .limit(1);
+  const latestCompletedId = ((latestCompletedRaw ?? []) as { id: string }[])[0]?.id;
+
+  // Get all job IDs for count queries
+  const { data: allJobIds } = await supabase
+    .from("scrape_jobs")
+    .select("id")
+    .eq("user_id", user!.id);
+  const jobIds = ((allJobIds ?? []) as { id: string }[]).map((j) => j.id);
   let totalLeadCount = 0;
   let hotLeadCount = 0;
 
@@ -109,9 +124,9 @@ export default async function DashboardPage() {
               Score 80+ — ready to pitch
             </p>
           </div>
-          {hotLeadCount > 0 && recentJobs.find((j) => j.status === "completed") && (
+          {hotLeadCount > 0 && latestCompletedId && (
             <Link
-              href={`/search/${recentJobs.find((j) => j.status === "completed")!.id}/results`}
+              href={`/search/${latestCompletedId}/results`}
               className="inline-flex items-center gap-2 text-sm text-[var(--color-accent)] font-medium hover:underline mt-4"
             >
               View latest results <ArrowRight className="w-4 h-4" />

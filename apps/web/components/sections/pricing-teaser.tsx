@@ -61,22 +61,40 @@ const TIERS = [
 
 export function PricingTeaser() {
   const ref = useGSAP(({ gsap, isMobile, el }) => {
-    gsap.from(el.querySelectorAll("[data-pricing-heading]"), {
-      scrollTrigger: { trigger: el, start: isMobile ? "top 90%" : "top 75%" },
-      y: isMobile ? 20 : 40,
-      opacity: 0,
-      duration: 0.6,
-      ease: "power2.out",
-    });
+    gsap.fromTo(
+      el.querySelectorAll("[data-pricing-heading]"),
+      { y: isMobile ? 20 : 40, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.6,
+        ease: "power2.out",
+        immediateRender: false,
+        scrollTrigger: {
+          trigger: el,
+          start: isMobile ? "top 95%" : "top 85%",
+          toggleActions: "play none none none",
+        },
+      }
+    );
 
-    gsap.from(el.querySelectorAll("[data-pricing-card]"), {
-      scrollTrigger: { trigger: el, start: isMobile ? "top 85%" : "top 60%" },
-      y: isMobile ? 25 : 50,
-      opacity: 0,
-      duration: 0.7,
-      stagger: 0.12,
-      ease: "power2.out",
-    });
+    gsap.fromTo(
+      el.querySelectorAll("[data-pricing-card]"),
+      { y: isMobile ? 25 : 50, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.7,
+        stagger: 0.12,
+        ease: "power2.out",
+        immediateRender: false,
+        scrollTrigger: {
+          trigger: el,
+          start: isMobile ? "top 92%" : "top 80%",
+          toggleActions: "play none none none",
+        },
+      }
+    );
   });
 
   return (
@@ -103,7 +121,7 @@ export function PricingTeaser() {
               className={cn(
                 "relative p-8 rounded-xl border transition-all duration-500",
                 tier.featured
-                  ? "border-[var(--color-accent)]/30 bg-[var(--color-bg-tertiary)] shadow-lg shadow-[var(--color-accent)]/5"
+                  ? "border-[var(--color-accent)]/40 bg-[var(--color-bg-tertiary)] shadow-[0_8px_32px_-12px_var(--color-accent-10)]"
                   : "border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-border-hover)]"
               )}
             >

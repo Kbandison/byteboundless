@@ -29,22 +29,40 @@ const STEPS = [
 
 export function HowItWorks() {
   const ref = useGSAP(({ gsap, isMobile, el }) => {
-    gsap.from(el.querySelectorAll("[data-hiw-heading]"), {
-      scrollTrigger: { trigger: el, start: isMobile ? "top 90%" : "top 75%" },
-      y: isMobile ? 20 : 40,
-      opacity: 0,
-      duration: 0.6,
-      ease: "power2.out",
-    });
+    gsap.fromTo(
+      el.querySelectorAll("[data-hiw-heading]"),
+      { y: isMobile ? 20 : 40, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.6,
+        ease: "power2.out",
+        immediateRender: false,
+        scrollTrigger: {
+          trigger: el,
+          start: isMobile ? "top 95%" : "top 85%",
+          toggleActions: "play none none none",
+        },
+      }
+    );
 
-    gsap.from(el.querySelectorAll("[data-hiw-step]"), {
-      scrollTrigger: { trigger: el, start: isMobile ? "top 85%" : "top 60%" },
-      y: isMobile ? 25 : 50,
-      opacity: 0,
-      duration: 0.7,
-      stagger: 0.15,
-      ease: "power2.out",
-    });
+    gsap.fromTo(
+      el.querySelectorAll("[data-hiw-step]"),
+      { y: isMobile ? 25 : 50, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.7,
+        stagger: 0.15,
+        ease: "power2.out",
+        immediateRender: false,
+        scrollTrigger: {
+          trigger: el,
+          start: isMobile ? "top 92%" : "top 80%",
+          toggleActions: "play none none none",
+        },
+      }
+    );
   });
 
   return (

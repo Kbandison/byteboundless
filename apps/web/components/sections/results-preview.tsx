@@ -5,22 +5,40 @@ import { HeroMockup } from "@/components/sections/hero-mockup";
 
 export function ResultsPreview() {
   const ref = useGSAP(({ gsap, isMobile, el }) => {
-    gsap.from(el.querySelectorAll("[data-rp-heading]"), {
-      scrollTrigger: { trigger: el, start: isMobile ? "top 90%" : "top 75%" },
-      y: isMobile ? 20 : 40,
-      opacity: 0,
-      duration: 0.6,
-      ease: "power2.out",
-    });
+    gsap.fromTo(
+      el.querySelectorAll("[data-rp-heading]"),
+      { y: isMobile ? 20 : 40, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.6,
+        ease: "power2.out",
+        immediateRender: false,
+        scrollTrigger: {
+          trigger: el,
+          start: isMobile ? "top 95%" : "top 85%",
+          toggleActions: "play none none none",
+        },
+      }
+    );
 
-    gsap.from(el.querySelectorAll("[data-rp-mockup]"), {
-      scrollTrigger: { trigger: el, start: isMobile ? "top 85%" : "top 65%" },
-      y: isMobile ? 30 : 60,
-      opacity: 0,
-      scale: 0.98,
-      duration: 1,
-      ease: "power2.out",
-    });
+    gsap.fromTo(
+      el.querySelectorAll("[data-rp-mockup]"),
+      { y: isMobile ? 30 : 60, opacity: 0, scale: 0.98 },
+      {
+        y: 0,
+        opacity: 1,
+        scale: 1,
+        duration: 1,
+        ease: "power2.out",
+        immediateRender: false,
+        scrollTrigger: {
+          trigger: el,
+          start: isMobile ? "top 92%" : "top 80%",
+          toggleActions: "play none none none",
+        },
+      }
+    );
   });
 
   return (

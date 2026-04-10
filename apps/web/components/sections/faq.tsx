@@ -88,13 +88,22 @@ export function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const ref = useGSAP(({ gsap, isMobile, el }) => {
-    gsap.from(el.querySelectorAll("[data-faq-heading]"), {
-      scrollTrigger: { trigger: el, start: isMobile ? "top 90%" : "top 75%" },
-      y: isMobile ? 20 : 40,
-      opacity: 0,
-      duration: 0.6,
-      ease: "power2.out",
-    });
+    gsap.fromTo(
+      el.querySelectorAll("[data-faq-heading]"),
+      { y: isMobile ? 20 : 40, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.6,
+        ease: "power2.out",
+        immediateRender: false,
+        scrollTrigger: {
+          trigger: el,
+          start: isMobile ? "top 95%" : "top 85%",
+          toggleActions: "play none none none",
+        },
+      }
+    );
   });
 
   return (

@@ -35,6 +35,11 @@ export function useGSAP(
       callback({ gsap, ScrollTrigger, isMobile, el });
     }, ref);
 
+    // Refresh ScrollTrigger after this section's triggers register so they
+    // pick up the correct scroll positions (important when smooth scroll is
+    // wired up). Cheap and safe to call multiple times.
+    ScrollTrigger.refresh();
+
     return () => ctx.revert();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);

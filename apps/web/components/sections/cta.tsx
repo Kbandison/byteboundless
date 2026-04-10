@@ -6,45 +6,41 @@ import { useGSAP } from "@/hooks/use-gsap";
 
 export function CTA() {
   const ref = useGSAP(({ gsap, isMobile, el }) => {
+    const heading = el.querySelectorAll("[data-cta-heading]");
+    const sub = el.querySelectorAll("[data-cta-sub]");
+    const button = el.querySelectorAll("[data-cta-button]");
+
     const tl = gsap.timeline({
       scrollTrigger: {
         trigger: el,
-        start: isMobile ? "top 85%" : "top 70%",
+        start: isMobile ? "top 95%" : "top 85%",
+        toggleActions: "play none none none",
       },
     });
 
-    tl.from(el.querySelectorAll("[data-cta-heading]"), {
-      y: isMobile ? 25 : 50,
-      opacity: 0,
-      duration: 0.7,
-      ease: "power2.out",
-    })
-      .from(
-        el.querySelectorAll("[data-cta-sub]"),
-        {
-          y: isMobile ? 15 : 30,
-          opacity: 0,
-          duration: 0.6,
-          ease: "power2.out",
-        },
+    tl.fromTo(
+      heading,
+      { y: isMobile ? 25 : 50, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.7, ease: "power2.out", immediateRender: false }
+    )
+      .fromTo(
+        sub,
+        { y: isMobile ? 15 : 30, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.6, ease: "power2.out", immediateRender: false },
         "-=0.4"
       )
-      .from(
-        el.querySelectorAll("[data-cta-button]"),
-        {
-          y: isMobile ? 10 : 20,
-          opacity: 0,
-          duration: 0.5,
-          ease: "power2.out",
-        },
+      .fromTo(
+        button,
+        { y: isMobile ? 10 : 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: "power2.out", immediateRender: false },
         "-=0.3"
       );
   });
 
   return (
     <section ref={ref} data-cta-section className="relative py-32 md:py-48">
-      {/* Accent gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--color-accent-3)] to-transparent pointer-events-none" />
+      {/* Accent gradient — uses accent-10 so it shows up clearly in both modes */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--color-accent-10)] to-transparent pointer-events-none" />
 
       <div className="relative max-w-4xl mx-auto text-center px-6">
         <h2

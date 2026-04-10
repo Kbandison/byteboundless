@@ -26,25 +26,35 @@ const PROBLEMS = [
 
 export function Problem() {
   const ref = useGSAP(({ gsap, isMobile, el }) => {
-    const start = isMobile ? "top 90%" : "top 75%";
-    const cardStart = isMobile ? "top 85%" : "top 65%";
+    const start = isMobile ? "top 95%" : "top 85%";
+    const cardStart = isMobile ? "top 92%" : "top 80%";
 
-    gsap.from(el.querySelectorAll("[data-problem-title]"), {
-      scrollTrigger: { trigger: el, start },
-      y: isMobile ? 20 : 40,
-      opacity: 0,
-      duration: 0.6,
-      ease: "power2.out",
-    });
+    gsap.fromTo(
+      el.querySelectorAll("[data-problem-title]"),
+      { y: isMobile ? 20 : 40, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.6,
+        ease: "power2.out",
+        immediateRender: false,
+        scrollTrigger: { trigger: el, start, toggleActions: "play none none none" },
+      }
+    );
 
-    gsap.from(el.querySelectorAll("[data-problem-card]"), {
-      scrollTrigger: { trigger: el, start: cardStart },
-      y: isMobile ? 25 : 50,
-      opacity: 0,
-      duration: 0.6,
-      stagger: 0.12,
-      ease: "power2.out",
-    });
+    gsap.fromTo(
+      el.querySelectorAll("[data-problem-card]"),
+      { y: isMobile ? 25 : 50, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.6,
+        stagger: 0.12,
+        ease: "power2.out",
+        immediateRender: false,
+        scrollTrigger: { trigger: el, start: cardStart, toggleActions: "play none none none" },
+      }
+    );
   });
 
   return (

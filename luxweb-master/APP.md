@@ -479,39 +479,152 @@ Every CRM/CMS should include AT LEAST 2 view options for the same data (e.g., "T
 
 # Reusable Modern Patterns
 
-These are utility patterns used across any app layout above. Use them liberally.
+These are utility patterns used across any app layout above. Use them liberally. Each pattern includes the implementation approach that was proven in ByteBoundless.
 
 ## Command Palette (Cmd+K)
 
-Keyboard-first navigation overlay. Triggered globally, fuzzy-searchable, lists navigation destinations and actions. Use the `cmdk` library. Every app with more than 5 routes should have one.
+Keyboard-first navigation overlay. Triggered globally, fuzzy-searchable, lists navigation destinations and actions.
 
-## Slide-Over Drawer
+**Implementation:**
+- Use the `cmdk` library (by paco coursey).
+- Register a global `keydown` listener for `Cmd+K` / `Ctrl+K`.
+- Render as a fixed overlay with backdrop blur.
+- Group items by category: Navigation, Actions.
+- Style selected items with `data-[selected=true]:bg-accent/10`.
+- Include keyboard hints in the footer: `↑↓` navigate, `↵` select, `esc` close.
+- Include theme toggle and sign-out as actions.
+- Every app with 5+ routes MUST have one.
 
-Side panel that slides in from the right for secondary content (editing a record, viewing details, quick actions). Use `vaul` or custom Framer Motion. Prefer over modals for anything more complex than a confirmation.
+```tsx
+// Structure
+<Command>
+  <Command.Input placeholder="Search pages, actions..." />
+  <Command.List>
+    <Command.Group heading="Navigation">
+      <Command.Item onSelect={() => router.push("/dashboard")}>Dashboard</Command.Item>
+    </Command.Group>
+    <Command.Group heading="Actions">
+      <Command.Item>Toggle dark mode</Command.Item>
+    </Command.Group>
+  </Command.List>
+</Command>
+```
 
-## Floating Action Button
+## User Avatar Menu
 
-Single primary action fixed at the bottom-right of the viewport (mobile) or contextually in dense tables (desktop). "New record" type actions.
+Replaces standalone logout/settings icons. Shows user identity at a glance.
 
-## Sticky Section Headers
+**Implementation:**
+- Circle with user initials (derived from full name, fallback to email first 2 chars).
+- Background: accent color. Text: white.
+- Click opens a dropdown with: email + plan badge, Settings link, Guide/Help link, Sign Out.
+- Include a `Cmd+K` hint at the bottom of the dropdown.
+- Dropdown positioned absolute right, z-50.
+- Close on outside click via mousedown listener on document.
 
-Headers that stick to the top of the content area as the user scrolls, giving context. Very effective in long settings pages or detail views.
+## Toast Notifications
 
-## Contextual Side Panel
+Use `sonner` for all transient feedback. Never use inline success messages that auto-dismiss.
 
-Panel on the right that can be collapsed, used for inline help, metadata, related items, version history. Distinct from navigation sidebar.
-
-## Toasts
-
-Use for success confirmations and non-blocking errors only. Position top-right on desktop, top-center on mobile. `sonner` library is the current best. Never use for critical errors — those need inline placement.
+**Implementation:**
+- Install `sonner`, add `<Toaster>` to root layout.
+- Style with CSS variables to match the design system:
+  ```tsx
+  <Toaster
+    position="top-right"
+    toastOptions={{
+      style: {
+        background: "var(--color-bg-tertiary)",
+        border: "1px solid var(--color-border)",
+        color: "var(--color-text-primary)",
+        fontSize: "13px",
+      },
+    }}
+  />
+  ```
+- Use `toast.success("Saved")` for confirmations.
+- Use `toast.error("Failed")` for non-blocking errors.
+- Keep critical form errors inline (user needs to see them to fix the form).
+- Never use `alert()`.
 
 ## Skeleton Loaders
 
-ALWAYS match the layout shape of the final content. Never use spinning circles. Pulse animation in `var(--bg-tertiary)`. Held states should be 300ms minimum to avoid flashing.
+ALWAYS match the layout shape of the final content. Never use spinning circles.
+
+**Implementation:**
+- Create a `Bone` component: `animate-pulse rounded-lg bg-[var(--color-bg-secondary)]`.
+- Create page-specific skeletons that mirror the exact grid/card layout of the loaded state.
+- Export from a shared `skeletons.tsx` file.
+- Use instead of `<Loader2 className="animate-spin">` everywhere.
+- Minimum display time: 300ms to avoid flash.
+
+```tsx
+function Bone({ className }: { className?: string }) {
+  return <div className={cn("animate-pulse rounded-lg bg-[var(--color-bg-secondary)]", className)} />;
+}
+
+// Dashboard skeleton mirrors the bento grid
+export function DashboardSkeleton() {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <Bone className="col-span-2 row-span-2 h-52 rounded-2xl" />
+      <Bone className="h-24 rounded-2xl" />
+      <Bone className="h-24 rounded-2xl" />
+    </div>
+  );
+}
+```
+
+## Slide-Over Drawer
+
+Side panel that slides in from the right for secondary content. Use `vaul` or custom Framer Motion. Prefer over modals for anything more complex than a confirmation.
+
+## Floating Action Button
+
+Single primary action fixed at bottom-right on mobile. Hidden on desktop (desktop has the action in the header).
+
+```tsx
+<Link
+  href="/search/new"
+  className="md:hidden fixed bottom-6 right-6 z-30 w-14 h-14 bg-accent text-white rounded-full flex items-center justify-center shadow-lg"
+>
+  <Plus className="w-6 h-6" />
+</Link>
+```
+
+## Sticky Section Headers
+
+Headers that stick to the top of the content area as the user scrolls. Use `sticky top-24` (accounting for nav height). Very effective in settings pages with split navigation.
+
+## Help Tooltips
+
+Small info icons that show explanatory text on hover/click. Use `<span>` elements (not `<div>`) so they can nest inside `<p>` tags without hydration errors.
+
+**Implementation:**
+- Hover + click to toggle. Click-outside to dismiss.
+- Dark background tooltip with white text, `z-50`.
+- Position variants: top, bottom, left, right.
+- Keep text under 2 sentences.
 
 ## Keyboard Shortcuts
 
-Every app surface should have at least: `Cmd+K` (palette), `Esc` (close modal/drawer), `?` (help overlay showing all shortcuts). Power-user products should have more.
+Every app surface should have at least: `Cmd+K` (palette), `Esc` (close modal/drawer). Power-user products add:
+- `n` — new record / new search
+- `f` — toggle filters
+- `/` — focus search input
+- `?` — show shortcuts help overlay
+
+## Dark Mode
+
+Support system preference + manual toggle. Persist to localStorage.
+
+**Implementation:**
+- Define dark palette as CSS overrides in `html.dark { }` block.
+- Use a `useTheme` hook with: `theme` (light/dark/system), `setTheme`, `mounted`, `isDark`.
+- Only render theme-dependent icons after `mounted` is true (prevents hydration mismatch).
+- Add `suppressHydrationWarning` to `<html>`.
+- Toggle button in both desktop nav and mobile menu.
+- Dark palette shifts: backgrounds to near-black, text to near-white, accent to brighter variant for contrast.
 
 ---
 

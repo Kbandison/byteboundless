@@ -11,9 +11,6 @@ import {
   Loader2,
   Send,
   X,
-  CheckCircle2,
-  Clock,
-  XCircle,
   Inbox,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -22,16 +19,13 @@ import { cn } from "@/lib/utils";
 import { StaggerContainer, StaggerItem } from "@/components/ui/motion-stagger";
 
 type Category = "bug" | "feature" | "question" | "other";
-type Status = "new" | "in_progress" | "resolved" | "closed";
 
 interface Feedback {
   id: string;
   category: Category;
   subject: string;
   message: string;
-  status: Status;
   created_at: string;
-  resolved_at: string | null;
 }
 
 const CATEGORIES: { value: Category; label: string; icon: typeof Bug; description: string }[] = [
@@ -40,53 +34,6 @@ const CATEGORIES: { value: Category; label: string; icon: typeof Bug; descriptio
   { value: "question", label: "Question", icon: HelpCircle, description: "How do I…?" },
   { value: "other", label: "Other", icon: MoreHorizontal, description: "Anything else on your mind" },
 ];
-
-const STATUS_LABELS: Record<Status, string> = {
-  new: "New",
-  in_progress: "In progress",
-  resolved: "Resolved",
-  closed: "Closed",
-};
-
-function StatusChip({ status }: { status: Status }) {
-  const config: Record<
-    Status,
-    { label: string; classes: string; icon: typeof Clock }
-  > = {
-    new: {
-      label: STATUS_LABELS.new,
-      classes: "bg-[var(--color-accent)]/10 text-[var(--color-accent)]",
-      icon: Clock,
-    },
-    in_progress: {
-      label: STATUS_LABELS.in_progress,
-      classes: "bg-amber-500/15 text-amber-700",
-      icon: Loader2,
-    },
-    resolved: {
-      label: STATUS_LABELS.resolved,
-      classes: "bg-emerald-500/15 text-emerald-700",
-      icon: CheckCircle2,
-    },
-    closed: {
-      label: STATUS_LABELS.closed,
-      classes: "bg-[var(--color-bg-secondary)] text-[var(--color-text-dim)]",
-      icon: XCircle,
-    },
-  };
-  const { label, classes, icon: Icon } = config[status];
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-medium",
-        classes
-      )}
-    >
-      <Icon className="w-3 h-3" />
-      {label}
-    </span>
-  );
-}
 
 export default function FeedbackPage() {
   const [submissions, setSubmissions] = useState<Feedback[]>([]);
@@ -107,7 +54,7 @@ export default function FeedbackPage() {
     const supabase = createClient();
     const { data } = await supabase
       .from("feedback")
-      .select("*")
+      .select("id, category, subject, message, created_at")
       .order("created_at", { ascending: false });
     setSubmissions((data ?? []) as unknown as Feedback[]);
     setLoading(false);
@@ -342,10 +289,7 @@ export default function FeedbackPage() {
                         <Icon className="w-4 h-4 text-[var(--color-text-secondary)]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <p className="text-sm font-medium truncate">{f.subject}</p>
-                          <StatusChip status={f.status} />
-                        </div>
+                        <p className="text-sm font-medium truncate mb-1">{f.subject}</p>
                         <p className="text-xs text-[var(--color-text-dim)] font-[family-name:var(--font-mono)]">
                           {new Date(f.created_at).toLocaleDateString("en-US", {
                             month: "short",
@@ -369,12 +313,11 @@ export default function FeedbackPage() {
           </StaggerContainer>
         )}
         <p className="text-[11px] text-[var(--color-text-dim)] mt-4 leading-relaxed text-center">
-          Status changes are posted here as we work through your request. We&apos;ll
-          reply via email — check your inbox (and{" "}
+          We&apos;ll reply via email — check your inbox (and{" "}
           <Link href="/settings#notifications" className="text-[var(--color-accent)] hover:underline">
             spam folder
           </Link>
-          ) for updates.
+          ) for a response.
         </p>
       </div>
     </div>

@@ -5,8 +5,8 @@
 import { Sentry } from "./instrument.js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const APP_URL = process.env.APP_URL || "https://byteboundless.com";
-const FROM_ADDRESS = process.env.RESEND_FROM_ADDRESS || "ByteBoundless <hello@byteboundless.com>";
+const APP_URL = process.env.APP_URL || "https://byteboundless.io";
+const FROM_ADDRESS = process.env.RESEND_FROM_ADDRESS || "ByteBoundless <hello@byteboundless.io>";
 
 export interface JobCompleteEmailData {
   email: string;

@@ -101,8 +101,8 @@ when a user clicks "Manage Billing" or "Downgrade."
    - [x] Subscription updates (let users switch between Pro and Agency directly in the portal)
      - Click "Customize" → add both Pro and Agency products as allowed switch targets
 3. Under **Business information**, set:
-   - Privacy policy URL: `https://byteboundless.com/privacy`
-   - Terms of service URL: `https://byteboundless.com/terms`
+   - Privacy policy URL: `https://byteboundless.io/privacy`
+   - Terms of service URL: `https://byteboundless.io/terms`
 4. Under **Default redirect link**, it doesn't matter — our portal session
    sets its own `return_url` via the API
 5. Click **Save changes**
@@ -115,7 +115,7 @@ For each environment where webhooks should fire:
 
 **Production (live mode):**
 1. https://dashboard.stripe.com/webhooks → Add endpoint
-2. Endpoint URL: `https://byteboundless.com/api/billing/webhook`
+2. Endpoint URL: `https://byteboundless.io/api/billing/webhook`
 3. Events to send:
    - `payment_intent.succeeded` ← required for custom checkout overage purchases
    - `checkout.session.completed` ← legacy / safety net

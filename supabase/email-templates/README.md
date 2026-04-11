@@ -62,12 +62,12 @@ causes confusing "magic link took me to the wrong page" bugs.
 
 1. Sidebar: **Authentication → URL Configuration**
 2. **Site URL** — set to your production domain. Pick one:
-   - `https://byteboundless.com` (your custom domain, once live)
+   - `https://byteboundless.io` (your custom domain, once live)
    - `https://byteboundless.vercel.app` (Vercel default)
 3. **Redirect URLs** — add EVERY URL pattern that could ever appear in
    `emailRedirectTo` from the app. Add these:
    ```
-   https://byteboundless.com/**
+   https://byteboundless.io/**
    https://byteboundless.vercel.app/**
    https://*.vercel.app/**
    http://localhost:3000/**
@@ -100,12 +100,12 @@ for testing" option for anything beyond the first five minutes — it's shared
 infrastructure and will get your emails marked as spam.
 
 1. Dashboard sidebar: **Domains → Add Domain**
-2. Enter `byteboundless.com` (or whatever domain you're sending from)
+2. Enter `byteboundless.io` (or whatever domain you're sending from)
 3. Resend shows you a list of DNS records to add:
    - **1× TXT record** for SPF (`v=spf1 include:amazonses.com ~all` or similar)
    - **1× TXT record** for DKIM (long public key)
    - **1× MX record** for return-path (optional but recommended)
-   - **1× TXT record** for DMARC (set this to `v=DMARC1; p=none; rua=mailto:you@byteboundless.com;` to start)
+   - **1× TXT record** for DMARC (set this to `v=DMARC1; p=none; rua=mailto:you@byteboundless.io;` to start)
 4. Add these records at your domain registrar (Cloudflare, Namecheap, Vercel
    Domains, etc.) exactly as shown
 5. Click **Verify** back in Resend. Propagation takes 5-60 minutes. You'll
@@ -140,7 +140,7 @@ migrate before any real beta invites.
 2. Sidebar: **Authentication → Emails → SMTP Settings**
 3. Toggle **Enable Custom SMTP** on
 4. Fill in the fields:
-   - **Sender email:** `hello@byteboundless.com` (or `noreply@byteboundless.com`)
+   - **Sender email:** `hello@byteboundless.io` (or `noreply@byteboundless.io`)
    - **Sender name:** `ByteBoundless`
    - **Host:** `smtp.resend.com`
    - **Port:** `465`
@@ -165,7 +165,7 @@ any beta users:
 2. Check your inbox within 30 seconds
 3. Verify:
    - [ ] Email arrived (check spam folder if not in inbox)
-   - [ ] Sender shows as `ByteBoundless <hello@byteboundless.com>`, not Resend
+   - [ ] Sender shows as `ByteBoundless <hello@byteboundless.io>`, not Resend
      or Supabase
    - [ ] Subject line reads correctly (`Welcome to ByteBoundless…`)
    - [ ] Layout renders — logo, button, privacy/terms links

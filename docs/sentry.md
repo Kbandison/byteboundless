@@ -22,11 +22,32 @@ for beta.
 
 ## 2. Create an auth token (for source map upload)
 
-1. Sentry dashboard → Settings → Developer Settings → **Auth Tokens**
+Sentry reorganized tokens in late 2025 — you now see three token types:
+**Personal tokens**, **Organization tokens**, and **OAuth applications**.
+
+**Use Organization tokens.** They're tied to the org (not a specific
+user), pre-scoped for CI/CD use cases, and don't break when a team
+member leaves.
+
+1. Go to https://sentry.io/settings/&lt;your-org-slug&gt;/auth-tokens/
+   (or sidebar: **Settings → Auth Tokens → Organization Tokens**)
 2. Click **Create New Token**
-3. Name: `ByteBoundless Vercel Deploy`
-4. Scopes: check `project:releases` and `org:read`
-5. Copy the token — shown only once
+3. **Name:** `ByteBoundless Vercel Deploy`
+4. **Scope:** the UI locks this to `org:ci` — that's the correct
+   CI/CD bundle and includes everything the Sentry Next.js build
+   integration needs (releases, source map upload, project read/write).
+   You don't need to pick anything — the locked scope is the right
+   answer.
+5. Click **Create**, copy the token immediately (shown only once).
+   Organization tokens start with `sntrys_...`.
+
+> **Don't use Personal tokens** for Vercel deploys. They work, but
+> they're tied to your user account and will stop working if you ever
+> remove yourself from the Sentry org.
+>
+> **Don't use OAuth applications** — those are for building third-party
+> integrations where other users authenticate against your Sentry
+> account, not for uploading source maps.
 
 ## 3. Set environment variables
 

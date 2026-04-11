@@ -3,7 +3,7 @@ export const SITE = {
   title: "ByteBoundless — Find Businesses That Need Better Websites",
   description:
     "Lead intelligence for freelance web developers. Scrape Google Maps, score businesses by rebuild opportunity, and generate AI-powered pitch angles — all in one tool.",
-  url: "https://byteboundless.com",
+  url: "https://byteboundless.io",
 } as const;
 
 export const NAV_LINKS = [

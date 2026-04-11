@@ -48,8 +48,8 @@ Set these on the Railway worker service:
 
 ```
 RESEND_API_KEY=re_...       # Same Resend account used for Supabase SMTP
-APP_URL=https://byteboundless.com       # Base URL for the "View Results" link
-RESEND_FROM_ADDRESS=ByteBoundless <hello@byteboundless.com>  # Optional, has a default
+APP_URL=https://byteboundless.io       # Base URL for the "View Results" link
+RESEND_FROM_ADDRESS=ByteBoundless <hello@byteboundless.io>  # Optional, has a default
 ```
 
 **Prerequisites:**

@@ -77,10 +77,10 @@ export default function PrivacyPage() {
               <p>
                 For privacy concerns, contact us at{" "}
                 <a
-                  href="mailto:privacy@byteboundless.com"
+                  href="mailto:privacy@byteboundless.io"
                   className="text-[var(--color-accent)] hover:underline"
                 >
-                  privacy@byteboundless.com
+                  privacy@byteboundless.io
                 </a>
                 .
               </p>

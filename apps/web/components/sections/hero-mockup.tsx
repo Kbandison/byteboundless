@@ -100,7 +100,7 @@ export function HeroMockup() {
           </div>
           <div className="flex-1 mx-8">
             <div className="bg-[var(--color-bg-primary)] rounded-md px-3 py-1 text-xs text-[var(--color-text-dim)] font-[family-name:var(--font-mono)] text-center">
-              byteboundless.com/search/results
+              byteboundless.io/search/results
             </div>
           </div>
         </div>

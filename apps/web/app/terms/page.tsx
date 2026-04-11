@@ -86,10 +86,10 @@ export default function TermsPage() {
               <p>
                 Questions about these terms? Contact us at{" "}
                 <a
-                  href="mailto:legal@byteboundless.com"
+                  href="mailto:legal@byteboundless.io"
                   className="text-[var(--color-accent)] hover:underline"
                 >
-                  legal@byteboundless.com
+                  legal@byteboundless.io
                 </a>
                 .
               </p>

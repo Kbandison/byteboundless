@@ -10,11 +10,14 @@ import {
   Loader2,
   ArrowRight,
   LogOut,
+  Check,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { SettingsSkeleton } from "@/components/ui/skeletons";
+import { SubscriptionManagement } from "./subscription-management";
 import { cn } from "@/lib/utils";
 
 const SERVICE_OPTIONS = [
@@ -24,24 +27,53 @@ const SERVICE_OPTIONS = [
   "Email Marketing", "Social Media",
 ];
 
+// Plan features are the source of truth for what the Billing section
+// in settings shows. Keep aligned with pricing-teaser.tsx (marketing)
+// and checkout/order-summary.tsx (checkout summary). Rule of thumb:
+// if a feature is enforced server-side, it belongs here.
 const PLANS = [
   {
     key: "free",
     name: "Free Trial",
     price: "$0",
-    description: "3 searches/mo, 50 results, 10 AI pitches",
+    description: "Try it out. No credit card required.",
+    features: [
+      { text: "3 searches per month", included: true },
+      { text: "50 results per search", included: true },
+      { text: "Lead scoring + enrichment (tech, emails, socials)", included: true },
+      { text: "10 AI pitches per month", included: true },
+      { text: "Lighthouse audits", included: false },
+      { text: "Saved lists + outcome tracking", included: false },
+      { text: "CSV export", included: false },
+    ],
   },
   {
     key: "pro",
     name: "Pro",
     price: "$29/mo",
-    description: "50 searches/mo, 500 results, 200 AI pitches",
+    description: "For active freelancers finding clients.",
+    features: [
+      { text: "50 searches per month", included: true },
+      { text: "500 results per search", included: true },
+      { text: "Lead scoring + Lighthouse audits", included: true },
+      { text: "200 AI pitches per month", included: true },
+      { text: "Saved lists + outcome tracking", included: true },
+      { text: "CSV export", included: true },
+    ],
   },
   {
     key: "agency",
     name: "Agency",
     price: "$79/mo",
-    description: "200 searches/mo, 1K results, unlimited AI pitches",
+    description: "For heavy users scaling outreach.",
+    features: [
+      { text: "200 searches per month", included: true },
+      { text: "1,000 results per search", included: true },
+      { text: "Lead scoring + Lighthouse audits", included: true },
+      { text: "Unlimited AI pitches", included: true },
+      { text: "Priority support", included: true },
+      { text: "Priority scraping + CSV export", included: true },
+    ],
   },
 ];
 
@@ -540,53 +572,99 @@ export default function SettingsPage() {
                   <div
                     key={p.key}
                     className={cn(
-                      "flex items-center justify-between p-4 rounded-lg border transition-all",
+                      "p-4 rounded-lg border transition-all",
                       plan === p.key
                         ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
                         : "border-[var(--color-border)]"
                     )}
                   >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold">{p.name}</p>
-                        <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">
-                          {p.price}
-                        </span>
-                        {plan === p.key && (
-                          <span className="text-[10px] uppercase tracking-wider font-medium bg-[var(--color-accent)] text-white px-2 py-0.5 rounded">
-                            Current
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold">{p.name}</p>
+                          <span className="text-sm font-[family-name:var(--font-mono)] text-[var(--color-text-secondary)]">
+                            {p.price}
                           </span>
-                        )}
+                          {plan === p.key && (
+                            <span className="text-[10px] uppercase tracking-wider font-medium bg-[var(--color-accent)] text-white px-2 py-0.5 rounded">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                          {p.description}
+                        </p>
                       </div>
-                      <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                        {p.description}
-                      </p>
-                    </div>
-                    {plan !== p.key && (() => {
+                      {plan !== p.key && (() => {
                       const tierOrder = { free: 0, pro: 1, agency: 2 } as const;
                       const isUpgrade =
                         tierOrder[p.key as "free" | "pro" | "agency"] >
                         tierOrder[plan as "free" | "pro" | "agency"];
                       // Admins don't buy subscriptions; they bypass everything.
                       if (role === "admin") return null;
-                      // Beta users have Agency already — hide downgrades (they
-                      // don't have a Stripe subscription to cancel). Upgrades
-                      // to higher tiers don't exist from Agency anyway.
+                      // Beta users have Agency already — hide plan-change
+                      // buttons entirely. They can't cancel (no Stripe sub)
+                      // and there's no tier above Agency anyway.
                       const betaDays = planExpiresAt
                         ? Math.max(0, Math.ceil((new Date(planExpiresAt).getTime() - Date.now()) / 86400000))
                         : 0;
                       const onBeta = betaDays > 0;
                       if (onBeta) return null;
-                      // Downgrades require a live Stripe subscription (portal
-                      // needs a customer). If there isn't one yet, skip.
+                      // Never render a plan-change button targeting Free.
+                      // Cancellation has its own dedicated flow in the
+                      // SubscriptionManagement component below (which
+                      // calls /api/billing/cancel and handles the
+                      // cancel-at-period-end + reactivate UX). Having a
+                      // second "Cancel" entry point on the plan grid
+                      // duplicates logic and confuses the user.
+                      if (p.key === "free") return null;
+                      // Upgrades from free → paid require no existing
+                      // subscription. Plan changes between paid plans
+                      // require one (so subscribe API can compute
+                      // proration). Skip when there's nothing to change.
                       if (!isUpgrade && !hasSubscription) return null;
                       return (
                         <PlanChangeButton
-                          targetPlan={p.key as "free" | "pro" | "agency"}
+                          targetPlan={p.key as "pro" | "agency"}
                           currentPlan={plan as "free" | "pro" | "agency"}
                         />
                       );
                     })()}
+                    </div>
+
+                    {/* Feature list — shows exactly what's included /
+                        excluded for each plan. Source of truth is the
+                        PLANS constant at the top of this file. */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                      {p.features.map((f) => (
+                        <div
+                          key={f.text}
+                          className="flex items-start gap-2 text-xs leading-snug"
+                        >
+                          {f.included ? (
+                            <Check
+                              className={cn(
+                                "w-3.5 h-3.5 shrink-0 mt-0.5",
+                                plan === p.key
+                                  ? "text-[var(--color-accent)]"
+                                  : "text-emerald-600"
+                              )}
+                            />
+                          ) : (
+                            <X className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[var(--color-text-dim)]" />
+                          )}
+                          <span
+                            className={
+                              f.included
+                                ? "text-[var(--color-text-secondary)]"
+                                : "text-[var(--color-text-dim)] line-through"
+                            }
+                          >
+                            {f.text}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -617,25 +695,12 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Manage subscription via Stripe Billing Portal — only show
-                  for users who actually have a Stripe subscription. Beta
-                  users and admins have plan=agency but no subscription,
-                  so the portal would 409 for them. */}
-              {hasSubscription && (
-                <div className="mt-8 pt-6 border-t border-[var(--color-border)]">
-                  <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-3">
-                    Manage Subscription
-                  </p>
-                  <p className="text-xs text-[var(--color-text-secondary)] mb-4">
-                    Update payment methods, download invoices, change plans, or cancel your subscription.
-                  </p>
-                  <ManageBillingButton />
-                </div>
-              )}
-
-              <p className="text-xs text-[var(--color-text-dim)] mt-4">
-                Billing is managed through Stripe.
-              </p>
+              {/* Native subscription management — card update, cancel,
+                  reactivate. Renders only for users with a real Stripe
+                  subscription (so beta/admin plan=agency holders are
+                  skipped by the component's own hasSubscription check).
+                  Replaced the old Stripe Billing Portal trip. */}
+              <SubscriptionManagement />
             </section>
           )}
 
@@ -738,101 +803,32 @@ export default function SettingsPage() {
   );
 }
 
-// ─── Plan change button (handles upgrade / downgrade / cancel) ───
+// ─── Plan change button (upgrade / downgrade between paid plans) ───
+// Cancellation lives in SubscriptionManagement, not here. This button
+// is never rendered when targetPlan === 'free' (see the callsite guard).
 function PlanChangeButton({
   targetPlan,
   currentPlan,
 }: {
-  targetPlan: "free" | "pro" | "agency";
+  targetPlan: "pro" | "agency";
   currentPlan: "free" | "pro" | "agency";
 }) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
   const tierOrder = { free: 0, pro: 1, agency: 2 } as const;
   const isUpgrade = tierOrder[targetPlan] > tierOrder[currentPlan];
 
-  async function handleClick() {
-    // Upgrade: navigate to our custom checkout page
-    if (isUpgrade && targetPlan !== "free") {
-      router.push(`/checkout?type=subscription&plan=${targetPlan}`);
-      return;
-    }
-
-    // Downgrade / cancel: route through the Stripe Billing Portal so the
-    // user gets Stripe's hosted UI for cancellation (with retention prompts,
-    // cancel_at_period_end handling, etc.). Portal changes come back via
-    // webhook events the /api/billing/webhook handler already processes.
-    setLoading(true);
-    try {
-      const res = await fetch("/api/billing/portal", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Failed to open billing portal");
-        return;
-      }
-      if (data.url) window.location.href = data.url;
-    } catch {
-      toast.error("Failed to open billing portal");
-    } finally {
-      setLoading(false);
-    }
+  function handleClick() {
+    router.push(`/checkout?type=subscription&plan=${targetPlan}`);
   }
 
   return (
     <button
       onClick={handleClick}
-      disabled={loading}
-      className="text-xs text-[var(--color-accent)] font-medium hover:underline flex items-center gap-1 disabled:opacity-50"
+      className="text-xs text-[var(--color-accent)] font-medium hover:underline flex items-center gap-1"
     >
-      {loading ? (
-        <Loader2 className="w-3 h-3 animate-spin" />
-      ) : isUpgrade ? (
-        "Upgrade"
-      ) : (
-        "Downgrade"
-      )}
-      {!loading && <ArrowRight className="w-3 h-3" />}
+      {isUpgrade ? "Upgrade" : "Downgrade"}
+      <ArrowRight className="w-3 h-3" />
     </button>
   );
 }
 
-// ─── Manage billing button — opens the Stripe Customer Portal ───
-// Used from the billing section for paid-plan users. The portal handles
-// cancellation, payment method updates, invoices, and plan changes.
-function ManageBillingButton() {
-  const [loading, setLoading] = useState(false);
-
-  async function handleClick() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/billing/portal", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Failed to open billing portal");
-        return;
-      }
-      if (data.url) window.location.href = data.url;
-    } catch {
-      toast.error("Failed to open billing portal");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[var(--color-border)] text-sm font-medium text-[var(--color-text-primary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50"
-    >
-      {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : (
-        <>
-          Manage Billing
-          <ArrowRight className="w-4 h-4" />
-        </>
-      )}
-    </button>
-  );
-}

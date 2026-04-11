@@ -104,7 +104,31 @@ export interface RawBusiness {
   leadReasons?: string[];
 }
 
-export type ProgressCallback = (phase: string, current: number, total: number) => void | Promise<void>;
+// Progress callback. The optional `activity` string lets the scraper
+// say what it's doing RIGHT NOW (e.g. "Visiting Joe's Plumbing"), which
+// the worker writes to scrape_jobs.current_activity for the live
+// ticker on the search progress page. Pass undefined for activity to
+// leave the field as-is.
+export type ProgressCallback = (
+  phase: string,
+  current: number,
+  total: number,
+  activity?: string
+) => void | Promise<void>;
+
+// Optional batch callback. When provided, the scraper invokes it with
+// fully-scored business batches as they complete (every BATCH_SIZE
+// businesses), so the worker can write them to the DB incrementally
+// instead of waiting for the whole search to finish. The user-facing
+// effect: results land in the database mid-search and are visible on
+// the results page while the rest of the search continues.
+export type BatchCallback = (batch: RawBusiness[]) => void | Promise<void>;
+
+// How many fully-scored businesses we accumulate before flushing.
+// 25 is small enough that the user sees the first batch quickly
+// during long Lighthouse runs, but large enough to keep DB write
+// volume reasonable.
+const RESULTS_BATCH_SIZE = 25;
 
 // ──────────────────────────────────────────────────────────────────
 // Helpers
@@ -588,7 +612,12 @@ async function scrapeDetailsParallel(
         if (placeId) seenIds.add(placeId);
         businesses.push({ ...result, mapsUrl: listing.url });
       }
-      onProgress("extracting", idx + 1, listings.length);
+      // Activity ticker — what we just extracted. Falls back to the
+      // listing URL if the result didn't have a name (rare).
+      const activity = result?.name
+        ? `Extracting ${result.name}${result.address ? ` (${result.address.split(",")[0]})` : ""}`
+        : `Extracting listing ${idx + 1}`;
+      onProgress("extracting", idx + 1, listings.length, activity);
 
       // Small delay between listings to avoid rate limiting
       await sleep(300);
@@ -607,7 +636,8 @@ async function scrapeDetailsParallel(
 export async function runUrlEnrich(
   urls: string[],
   onProgress: ProgressCallback,
-  runLighthouse = true
+  runLighthouse = true,
+  onBatch?: BatchCallback
 ): Promise<RawBusiness[]> {
   // Build minimal business records from URLs
   const businesses: RawBusiness[] = urls.map((url) => {
@@ -638,38 +668,62 @@ export async function runUrlEnrich(
     (done, total) => onProgress("enriching", done, total)
   );
 
-  // Lighthouse pass (sequential — runLighthouseAudit handles retry + timeouts)
-  // Gated behind `runLighthouse` so free-plan users skip it (Pro+ feature).
-  if (runLighthouse) {
-    for (let i = 0; i < enriched.length; i++) {
-      const b = enriched[i];
+  // Lighthouse + score + batched flush in one fused loop. Same
+  // pattern as runScrape() — see that function for the rationale.
+  // Gated behind `runLighthouse` so free-plan users skip Lighthouse
+  // (Pro+ feature) but still get scored and flushed incrementally.
+  const scored: RawBusiness[] = [];
+  const batchBuffer: RawBusiness[] = [];
+
+  for (let i = 0; i < enriched.length; i++) {
+    const b = enriched[i];
+
+    if (runLighthouse) {
       const e = b.enrichment as Record<string, unknown> | undefined;
       const url = (e?.finalUrl as string) || b.website;
-      if (!url || !e?.reachable) continue;
+      if (url && e?.reachable) {
+        const lh = await runLighthouseAudit(url);
+        if (lh) (e as Record<string, unknown>).lighthouse = lh;
+        await sleep(PSI_DELAY_BETWEEN_MS);
+      }
+    }
 
-      const lh = await runLighthouseAudit(url);
-      if (lh) (e as Record<string, unknown>).lighthouse = lh;
-      await sleep(PSI_DELAY_BETWEEN_MS);
+    // Score + buffer + flush
+    const { score, reasons } = computeLeadScore(b);
+    const scoredBusiness = { ...b, leadScore: score, leadReasons: reasons };
+    scored.push(scoredBusiness);
+    batchBuffer.push(scoredBusiness);
+
+    const activity = `Scoring ${b.name}`;
+    await onProgress("scoring", i + 1, enriched.length, activity);
+
+    if (onBatch && batchBuffer.length >= RESULTS_BATCH_SIZE) {
+      const batch = batchBuffer.splice(0);
+      console.log(`[Scraper/url] Flushing batch of ${batch.length} (${i + 1}/${enriched.length} done)`);
+      await onBatch(batch);
     }
   }
 
-  // Phase: Score
-  onProgress("scoring", 0, enriched.length);
-  const scored = enriched.map((b, i) => {
-    const { score, reasons } = computeLeadScore(b);
-    onProgress("scoring", i + 1, enriched.length);
-    return { ...b, leadScore: score, leadReasons: reasons };
-  });
+  // Final flush
+  if (onBatch && batchBuffer.length > 0) {
+    const batch = batchBuffer.splice(0);
+    console.log(`[Scraper/url] Flushing final batch of ${batch.length}`);
+    await onBatch(batch);
+  }
 
   scored.sort((a, b) => (b.leadScore || 0) - (a.leadScore || 0));
-  onProgress("done", scored.length, scored.length);
+  await onProgress("done", scored.length, scored.length, undefined);
   return scored;
 }
 
 // ──────────────────────────────────────────────────────────────────
 // Main scrape pipeline — called by the polling loop
 // ──────────────────────────────────────────────────────────────────
-export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallback): Promise<RawBusiness[]> {
+export async function runScrape(
+  opts: ScrapeOptions,
+  onProgress: ProgressCallback,
+  onBatch?: BatchCallback
+): Promise<RawBusiness[]> {
   // Phase 1: Collect
   onProgress("collecting", 0, 0);
   const listingUrls = await collectListingUrls(opts);
@@ -691,58 +745,92 @@ export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallbac
     );
   }
 
-  // Phase 3.5: Lighthouse (sequential — runLighthouseAudit handles retry + timeouts)
-  // Gated behind `runLighthouse` — free-plan users skip this phase
-  // entirely since Lighthouse audits are a Pro+ feature per the pricing
-  // page. `runLighthouse === undefined` defaults to true so older jobs
-  // created before this flag existed still behave the same.
+  // Phase 3.5 + 4 fused: Lighthouse + score + flush in batches.
+  // Previously this was two separate passes (Lighthouse loop, then a
+  // separate scoring map at the end), which meant results only landed
+  // in the DB after EVERY business finished its Lighthouse audit.
+  // Lighthouse can take 10+ minutes for a 200-result search, so the
+  // user saw nothing until the very end.
+  //
+  // Now each business is fully scored as soon as its Lighthouse audit
+  // completes, and we flush in batches of RESULTS_BATCH_SIZE so the
+  // user sees results land mid-search. The first batch typically
+  // arrives within ~2 minutes of search start.
   const shouldRunLighthouse = opts.enrich && opts.runLighthouse !== false;
+  const reachableCount = enriched.filter(
+    (b) => (b.enrichment as Record<string, unknown> | undefined)?.reachable
+  ).length;
   if (shouldRunLighthouse) {
-    const reachableCount = enriched.filter((b) => (b.enrichment as Record<string, unknown> | undefined)?.reachable).length;
     const hasKey = Boolean(process.env.GOOGLE_PSI_API_KEY);
     console.log(
       `[Scraper] Running Lighthouse audits for ${reachableCount} reachable sites${hasKey ? "" : " (no GOOGLE_PSI_API_KEY — using public rate limit)"}`
     );
-
-    let succeeded = 0;
-    let failed = 0;
-
-    for (let i = 0; i < enriched.length; i++) {
-      const b = enriched[i];
-      const e = b.enrichment as Record<string, unknown> | undefined;
-      const url = (e?.finalUrl as string) || b.website;
-      if (!url || !e?.reachable) {
-        onProgress("scoring", i + 1, enriched.length);
-        continue;
-      }
-
-      const lh = await runLighthouseAudit(url);
-      if (lh) {
-        (b.enrichment as Record<string, unknown>).lighthouse = lh;
-        succeeded++;
-        console.log(`[Lighthouse] ${b.name}: perf=${lh.performance} seo=${lh.seo} a11y=${lh.accessibility}`);
-      } else {
-        failed++;
-        console.log(`[Lighthouse] ${b.name}: failed (timeout or API error)`);
-      }
-
-      onProgress("scoring", i + 1, enriched.length);
-      await sleep(PSI_DELAY_BETWEEN_MS);
-    }
-
-    console.log(`[Scraper] Lighthouse pass done: ${succeeded} succeeded, ${failed} failed`);
   }
 
-  // Phase 4: Score
-  onProgress("scoring", 0, enriched.length);
-  const scored = enriched.map((b, i) => {
-    const { score, reasons } = computeLeadScore(b);
-    onProgress("scoring", i + 1, enriched.length);
-    return { ...b, leadScore: score, leadReasons: reasons };
-  });
+  const scored: RawBusiness[] = [];
+  const batchBuffer: RawBusiness[] = [];
+  let lhSucceeded = 0;
+  let lhFailed = 0;
 
+  for (let i = 0; i < enriched.length; i++) {
+    const b = enriched[i];
+
+    // Lighthouse pass (if enabled and reachable)
+    if (shouldRunLighthouse) {
+      const e = b.enrichment as Record<string, unknown> | undefined;
+      const url = (e?.finalUrl as string) || b.website;
+      if (url && e?.reachable) {
+        const lh = await runLighthouseAudit(url);
+        if (lh) {
+          (b.enrichment as Record<string, unknown>).lighthouse = lh;
+          lhSucceeded++;
+          console.log(`[Lighthouse] ${b.name}: perf=${lh.performance} seo=${lh.seo} a11y=${lh.accessibility}`);
+        } else {
+          lhFailed++;
+          console.log(`[Lighthouse] ${b.name}: failed (timeout or API error)`);
+        }
+        await sleep(PSI_DELAY_BETWEEN_MS);
+      }
+    }
+
+    // Score this business now that it has all its enrichment data
+    const { score, reasons } = computeLeadScore(b);
+    const scoredBusiness = { ...b, leadScore: score, leadReasons: reasons };
+    scored.push(scoredBusiness);
+    batchBuffer.push(scoredBusiness);
+
+    // Activity ticker — what the worker is currently working on. The
+    // throttler in the worker decides how often this actually hits
+    // the DB.
+    const activity = `Scoring ${b.name}${b.address ? ` (${b.address.split(",")[0]})` : ""}`;
+    await onProgress("scoring", i + 1, enriched.length, activity);
+
+    // Flush full batches as we go
+    if (onBatch && batchBuffer.length >= RESULTS_BATCH_SIZE) {
+      const batch = batchBuffer.splice(0);
+      console.log(`[Scraper] Flushing batch of ${batch.length} (${i + 1}/${enriched.length} done)`);
+      await onBatch(batch);
+    }
+  }
+
+  // Final flush — anything left in the buffer that didn't fill a full
+  // batch goes to the DB now.
+  if (onBatch && batchBuffer.length > 0) {
+    const batch = batchBuffer.splice(0);
+    console.log(`[Scraper] Flushing final batch of ${batch.length}`);
+    await onBatch(batch);
+  }
+
+  if (shouldRunLighthouse) {
+    console.log(`[Scraper] Lighthouse pass done: ${lhSucceeded} succeeded, ${lhFailed} failed`);
+  }
+
+  // Sort the in-memory copy by score for the return value (so logs
+  // and any non-batched callers still see the sorted list). The
+  // already-flushed DB rows are NOT re-ordered — the results page
+  // sorts on display anyway.
   scored.sort((a, b) => (b.leadScore || 0) - (a.leadScore || 0));
 
-  onProgress("done", scored.length, scored.length);
+  await onProgress("done", scored.length, scored.length, undefined);
   return scored;
 }

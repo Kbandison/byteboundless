@@ -139,28 +139,49 @@ async function failStaleJobs() {
 // factory, so every job has its own throttle window and pending
 // state. The state is closed over by the returned functions.
 function createProgressTracker(jobId: string) {
-  let pending: { phase: string; current: number; total: number } | null = null;
+  // Pending state now includes the optional `activity` string that
+  // drives the live ticker on the search progress page. The activity
+  // string is overwritten on every update — there's no history.
+  let pending: {
+    phase: string;
+    current: number;
+    total: number;
+    activity?: string;
+  } | null = null;
   let lastUpdate = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   async function flush() {
     if (!pending) return;
-    const { phase, current, total } = pending;
+    const { phase, current, total, activity } = pending;
     pending = null;
     lastUpdate = Date.now();
+    // current_activity is only included in the update payload when
+    // the latest pending state actually had one — otherwise we leave
+    // whatever was there alone (don't blank it out on an unrelated
+    // progress tick).
+    const update: Record<string, unknown> = {
+      phase,
+      progress_current: current,
+      progress_total: total,
+      heartbeat_at: new Date().toISOString(),
+    };
+    if (activity !== undefined) {
+      update.current_activity = activity;
+    }
     await supabase
       .from("scrape_jobs")
-      .update({
-        phase,
-        progress_current: current,
-        progress_total: total,
-        heartbeat_at: new Date().toISOString(),
-      } as never)
+      .update(update as never)
       .eq("id", jobId);
   }
 
-  function update(phase: string, current: number, total: number) {
-    pending = { phase, current, total };
+  function update(
+    phase: string,
+    current: number,
+    total: number,
+    activity?: string
+  ) {
+    pending = { phase, current, total, activity };
     const sinceLast = Date.now() - lastUpdate;
     if (sinceLast > 1500) {
       flush();
@@ -174,21 +195,30 @@ function createProgressTracker(jobId: string) {
 
   // Force-flush is used at phase transitions where we want the UI to
   // see the new phase immediately, not wait out the throttle window.
-  async function forceFlush(phase: string, current: number, total: number) {
+  async function forceFlush(
+    phase: string,
+    current: number,
+    total: number,
+    activity?: string
+  ) {
     pending = null;
     if (timer) {
       clearTimeout(timer);
       timer = null;
     }
     lastUpdate = Date.now();
+    const update: Record<string, unknown> = {
+      phase,
+      progress_current: current,
+      progress_total: total,
+      heartbeat_at: new Date().toISOString(),
+    };
+    if (activity !== undefined) {
+      update.current_activity = activity;
+    }
     await supabase
       .from("scrape_jobs")
-      .update({
-        phase,
-        progress_current: current,
-        progress_total: total,
-        heartbeat_at: new Date().toISOString(),
-      } as never)
+      .update(update as never)
       .eq("id", jobId);
   }
 
@@ -256,22 +286,36 @@ async function processJob(job: Record<string, unknown>) {
 
   // Build the progress callback for THIS job. Closures capture the
   // per-job tracker so concurrent jobs don't share progress state.
+  // The optional `activity` string is forwarded to the tracker so
+  // the live ticker on the search progress page sees the latest
+  // operation (e.g. "Extracting Joe's Plumbing").
   const progressCallback = async (
     phase: string,
     current: number,
-    total: number
+    total: number,
+    activity?: string
   ) => {
     if (phase === "enriching" && current === 0) {
       console.log(`[Worker] Job ${jobId} phase: enriching (${total} businesses)`);
-      await tracker.forceFlush(phase, current, total);
+      await tracker.forceFlush(phase, current, total, activity);
     } else if (phase === "scoring" && current === 0) {
       console.log(`[Worker] Job ${jobId} phase: scoring (${total} businesses)`);
-      await tracker.forceFlush(phase, current, total);
+      await tracker.forceFlush(phase, current, total, activity);
     } else if (phase === "collecting" || phase === "done") {
-      await tracker.forceFlush(phase, current, total);
+      await tracker.forceFlush(phase, current, total, activity);
     } else {
-      tracker.update(phase, current, total);
+      tracker.update(phase, current, total, activity);
     }
+  };
+
+  // Batch flush callback. The scraper invokes this with batches of
+  // fully-scored businesses as they complete (every RESULTS_BATCH_SIZE
+  // businesses). Each batch lands in the businesses table immediately
+  // so the user can see results on /search/[id]/results while the
+  // rest of the search continues. The results page subscribes to
+  // realtime INSERTs and renders new rows as they appear.
+  const onBatch = async (batch: RawBusiness[]) => {
+    await writeBusinessBatch(jobId, batch);
   };
 
   const options = job.options as {
@@ -300,7 +344,12 @@ async function processJob(job: Record<string, unknown>) {
 
     if (isUrlMode) {
       // Reverse mode: skip Google Maps, go straight to enrichment
-      results = await runUrlEnrich(options.urls!, progressCallback, runLighthouse);
+      results = await runUrlEnrich(
+        options.urls!,
+        progressCallback,
+        runLighthouse,
+        onBatch
+      );
     } else {
       const radius = (options.radius || (options.strict ? "city" : "nearby")) as "city" | "nearby" | "region" | "statewide";
       results = await runScrape(
@@ -312,15 +361,15 @@ async function processJob(job: Record<string, unknown>) {
           enrich: options.enrich,
           runLighthouse,
         },
-        progressCallback
+        progressCallback,
+        onBatch
       );
     }
 
-    console.log(`[Worker] Writing ${results.length} businesses to DB`);
-    await writeBusinessBatch(jobId, results);
-
-    // Flush any pending throttled progress before flipping to completed
-    // so the UI sees the final progress state, not a stale snapshot.
+    // The scraper already wrote results in batches via onBatch as
+    // they completed scoring — no final writeBusinessBatch needed.
+    // Just flush the throttled progress state so the UI sees the
+    // final phase before we mark the job complete.
     await tracker.flush();
     await completeJob(jobId);
     console.log(`[Worker] Job ${jobId} completed — ${results.length} results`);

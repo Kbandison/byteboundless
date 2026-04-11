@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, Activity, Search, Server } from "lucide-react";
+import { Users, Activity, Search, Server, MessageSquare } from "lucide-react";
 import { requireAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 import { StaggerContainer, StaggerItem } from "@/components/ui/motion-stagger";
@@ -25,10 +25,16 @@ export default async function AdminDashboard() {
     .from("businesses")
     .select("id", { count: "exact", head: true });
 
+  const { count: openFeedback } = await supabase
+    .from("feedback")
+    .select("id", { count: "exact", head: true })
+    .in("status", ["new", "in_progress"]);
+
   const stats = [
     { label: "Total Users", value: userCount ?? 0, icon: Users, href: "/admin/users" },
     { label: "Total Jobs", value: jobCount ?? 0, icon: Search, href: "/admin/jobs" },
     { label: "Running Now", value: runningJobs ?? 0, icon: Activity, href: "/admin/jobs" },
+    { label: "Open Feedback", value: openFeedback ?? 0, icon: MessageSquare, href: "/admin/feedback" },
     { label: "Businesses Scraped", value: businessCount ?? 0, icon: Server, href: "#" },
   ];
 
@@ -69,7 +75,7 @@ export default async function AdminDashboard() {
       </StaggerContainer>
 
       {/* Quick links */}
-      <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StaggerItem>
           <Link
             href="/admin/users"
@@ -80,7 +86,7 @@ export default async function AdminDashboard() {
               Manage Users
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)]">
-              View all users, change plans, grant admin access.
+              View all users, change plans, grant admin access, delete accounts.
             </p>
           </Link>
         </StaggerItem>
@@ -95,6 +101,20 @@ export default async function AdminDashboard() {
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)]">
               Track all scrape jobs, see failures, monitor the worker.
+            </p>
+          </Link>
+        </StaggerItem>
+        <StaggerItem>
+          <Link
+            href="/admin/feedback"
+            className="block p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/30 transition-all duration-300"
+          >
+            <MessageSquare className="w-6 h-6 text-[var(--color-accent)] mb-3" />
+            <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold mb-1">
+              Feedback Inbox
+            </h3>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Read, triage, and mark status on user-submitted feedback.
             </p>
           </Link>
         </StaggerItem>

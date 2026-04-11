@@ -12,12 +12,14 @@ import {
   Shield,
   LogOut,
   BookOpen,
+  MessageSquare,
   Sun,
   Moon,
   ChevronsLeft,
   ChevronsRight,
   Search,
 } from "lucide-react";
+import { FeedbackTooltip } from "@/components/ui/feedback-tooltip";
 import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { APP_NAV_LINKS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -33,6 +35,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Bookmark,
   Settings,
   BookOpen,
+  MessageSquare,
 };
 
 const SIDEBAR_KEY = "bb-sidebar-collapsed";
@@ -262,6 +265,11 @@ export function AppSidebar() {
           </div>
         </div>
       </aside>
+
+      {/* One-time discovery callout for the feedback feature. Rendered
+          at this level (not inside <aside>) so it positions against
+          the viewport, not the sidebar, and shows on mobile too. */}
+      <FeedbackTooltip />
 
       {/* Mobile Menu Drawer */}
       {mobileOpen && (

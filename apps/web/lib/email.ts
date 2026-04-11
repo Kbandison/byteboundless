@@ -415,3 +415,208 @@ ${POSTAL_ADDRESS.replace(/&middot;/g, "·")}
     tag: `beta_${args.kind}`,
   });
 }
+
+// ============================================================
+// Feedback / support inbox
+// ============================================================
+
+const SUPPORT_ADDRESS =
+  process.env.SUPPORT_EMAIL || "support@byteboundless.io";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  bug: "Bug",
+  feature: "Feature request",
+  question: "Question",
+  other: "Other",
+};
+
+function escapeText(s: string): string {
+  return escapeHtml(s).replace(/\n/g, "<br>");
+}
+
+/**
+ * Inbound notification to support: user submitted feedback. Body is a
+ * plain-styled email with reply-to set to the user's address so an
+ * admin can reply directly from whatever client they read support@ in.
+ *
+ * Intentionally skips the List-Unsubscribe headers — this is a 1:1
+ * transactional message between user and admin, not a bulk broadcast.
+ */
+export async function sendFeedbackToSupport(args: {
+  userId: string;
+  userEmail: string;
+  category: string;
+  subject: string;
+  message: string;
+  feedbackId: string;
+}): Promise<boolean> {
+  if (!RESEND_API_KEY) {
+    console.log("[Email/feedback_support] RESEND_API_KEY not set — skipping");
+    return false;
+  }
+  const categoryLabel = CATEGORY_LABELS[args.category] ?? "Other";
+  const subject = `[${categoryLabel}] ${args.subject}`;
+  const adminUrl = `${APP_URL}/admin/feedback`;
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="margin: 0; padding: 0; background-color: #FAFAFA; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; margin: 0 auto; padding: 32px 20px;">
+    <tr>
+      <td style="background-color: #FFFFFF; border-radius: 12px; border: 1px solid #E5E5E5; padding: 32px;">
+        <p style="margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #0066FF; font-weight: 500;">
+          New ${escapeHtml(categoryLabel)}
+        </p>
+        <h1 style="margin: 0 0 20px; font-size: 20px; font-weight: 700; color: #1A1A1A; letter-spacing: -0.02em;">
+          ${escapeHtml(args.subject)}
+        </h1>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 20px; font-size: 13px;">
+          <tr>
+            <td style="padding: 4px 0; color: #6B6B6B; width: 80px;">From</td>
+            <td style="padding: 4px 0; color: #1A1A1A;">${escapeHtml(args.userEmail)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #6B6B6B;">Category</td>
+            <td style="padding: 4px 0; color: #1A1A1A;">${escapeHtml(categoryLabel)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #6B6B6B;">User ID</td>
+            <td style="padding: 4px 0; color: #1A1A1A; font-family: ui-monospace, monospace; font-size: 11px;">${escapeHtml(args.userId)}</td>
+          </tr>
+        </table>
+        <div style="padding: 16px; border: 1px solid #E5E5E5; border-radius: 8px; background-color: #FAFAFA; font-size: 14px; color: #1A1A1A; line-height: 1.6; white-space: pre-wrap;">
+          ${escapeText(args.message)}
+        </div>
+        <p style="margin: 20px 0 0; font-size: 12px; color: #6B6B6B;">
+          Reply to this email to respond directly to ${escapeHtml(args.userEmail)}, or
+          <a href="${adminUrl}" style="color: #0066FF;">open the admin feedback inbox</a>
+          to change the status.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `ByteBoundless — New ${categoryLabel}
+
+Subject: ${args.subject}
+From: ${args.userEmail}
+User ID: ${args.userId}
+Feedback ID: ${args.feedbackId}
+
+---
+${args.message}
+---
+
+Reply to this email to respond directly to ${args.userEmail}.
+Admin inbox: ${adminUrl}
+`;
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: FROM_ADDRESS,
+        to: SUPPORT_ADDRESS,
+        reply_to: args.userEmail,
+        subject,
+        html,
+        text,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`[Email/feedback_support] Resend ${res.status}: ${body}`);
+      Sentry.captureMessage("Feedback support email failed", {
+        level: "warning",
+        tags: { context: "web_email", email_kind: "feedback_support" },
+        extra: { status: res.status, body, feedbackId: args.feedbackId },
+      });
+      return false;
+    }
+    console.log(`[Email/feedback_support] Sent for feedback ${args.feedbackId}`);
+    return true;
+  } catch (err) {
+    console.error("[Email/feedback_support] Fetch failed:", err);
+    Sentry.captureException(err, {
+      tags: { context: "web_email", email_kind: "feedback_support" },
+    });
+    return false;
+  }
+}
+
+/**
+ * Auto-receipt to the user: "we got your feedback, here's what you
+ * submitted, we'll reply via email." Includes their original message
+ * so they have a record even if they submit anonymously from somewhere.
+ */
+export async function sendFeedbackConfirmation(args: {
+  userId: string;
+  email: string;
+  category: string;
+  subject: string;
+  message: string;
+}): Promise<boolean> {
+  const categoryLabel = CATEGORY_LABELS[args.category] ?? "Feedback";
+  const unsubscribeUrl = buildUnsubscribeUrl(args.userId, "subscription");
+  const emailSubject = `We got your ${categoryLabel.toLowerCase()} — ByteBoundless`;
+
+  const bodyHtml = `
+    <p style="margin: 0 0 16px; font-size: 14px; color: #1A1A1A; line-height: 1.6;">
+      Thanks for reaching out. We&apos;ve received your ${escapeHtml(categoryLabel.toLowerCase())} and a real human will read it shortly — we&apos;ll reply to this email address if we need more details or want to follow up.
+    </p>
+    <p style="margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #888;">
+      What you submitted
+    </p>
+    <div style="padding: 16px; border: 1px solid #E5E5E5; border-radius: 8px; background-color: #FAFAFA; text-align: left;">
+      <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #1A1A1A;">
+        ${escapeHtml(args.subject)}
+      </p>
+      <p style="margin: 0; font-size: 13px; color: #555; line-height: 1.6; white-space: pre-wrap;">
+        ${escapeText(args.message)}
+      </p>
+    </div>
+    <p style="margin: 16px 0 0; font-size: 12px; color: #6B6B6B; line-height: 1.5;">
+      You can check the status of all your submissions in your account at any time.
+    </p>
+  `;
+
+  const html = layoutHtml({
+    subheadline: categoryLabel,
+    headline: "We got your message",
+    bodyHtml,
+    ctaLabel: "View my feedback",
+    ctaUrl: `${APP_URL}/feedback`,
+    unsubscribeUrl,
+    footerNote: "This is an automatic confirmation — replying to it is fine, it goes straight to our support inbox.",
+  });
+
+  const text = `ByteBoundless
+
+We got your ${categoryLabel.toLowerCase()}.
+
+Subject: ${args.subject}
+
+${args.message}
+
+We'll reply to this email address if we need more details. You can also
+check the status of your submissions at ${APP_URL}/feedback.
+
+---
+${POSTAL_ADDRESS.replace(/&middot;/g, "·")}
+`;
+
+  return sendEmail({
+    to: args.email,
+    subject: emailSubject,
+    html,
+    text,
+    unsubscribeUrl,
+    tag: "feedback_confirmation",
+  });
+}

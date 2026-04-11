@@ -67,7 +67,40 @@ export async function POST(request: Request) {
   if (status === "not_found") {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
-  // status === 'ok' — quota consumed, proceed
+  // status === 'ok' — per-user quota consumed, proceed
+
+  // Global daily budget ceiling — defense in depth against bugs
+  // in consume_pitch_quota, compromised admin accounts, or runaway
+  // callers. The value is intentionally generous; its job is to
+  // protect from orders-of-magnitude overspend, not to replace the
+  // per-user limit above.
+  const DAILY_PITCH_BUDGET = parseInt(
+    process.env.DAILY_PITCH_BUDGET || "500",
+    10
+  );
+  const { data: budgetCount, error: budgetError } = await supabase.rpc(
+    "consume_api_budget" as never,
+    { p_kind: "anthropic_pitch", p_limit: DAILY_PITCH_BUDGET } as never
+  );
+  if (budgetError) {
+    console.error("[Pitch] Budget check failed:", budgetError);
+    return NextResponse.json(
+      { error: "Budget check failed" },
+      { status: 500 }
+    );
+  }
+  if ((budgetCount as unknown as number) > DAILY_PITCH_BUDGET) {
+    console.warn(
+      `[Pitch] Daily budget exceeded (${budgetCount}/${DAILY_PITCH_BUDGET}) — refusing request`
+    );
+    return NextResponse.json(
+      {
+        error:
+          "AI pitch generation is temporarily unavailable. Daily global budget reached. Please try again tomorrow.",
+      },
+      { status: 503 }
+    );
+  }
 
   // Fetch user profile for pitch personalization (plan no longer needed
   // here; quota enforcement happens in the RPC above).

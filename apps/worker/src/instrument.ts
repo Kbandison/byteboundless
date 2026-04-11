@@ -12,6 +12,49 @@ import * as Sentry from "@sentry/node";
 
 const DSN = process.env.SENTRY_DSN;
 
+// Keys that MUST NEVER land in Sentry. The worker's processJob
+// catch passes `query` and `location` as extras — both are user-
+// entered text that can contain anything. This list is the single
+// source of truth for what's PII in both the web app and the worker;
+// keep them aligned (apps/web/sentry.server.config.ts has a copy).
+const PII_KEYS = new Set([
+  "email",
+  "user_email",
+  "userEmail",
+  "query",
+  "location",
+  "subject",
+  "message",
+  "body",
+  "phone",
+  "address",
+  "fullName",
+  "full_name",
+  "businessName",
+  "business_name",
+  "draftEmail",
+  "draft_email",
+  "pitchAngle",
+  "pitch_angle",
+]);
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function scrub(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(scrub);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const out: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (PII_KEYS.has(key)) {
+      out[key] = "[redacted]";
+    } else {
+      out[key] = scrub(value);
+    }
+  }
+  return out;
+}
+
 if (DSN) {
   Sentry.init({
     dsn: DSN,
@@ -36,6 +79,25 @@ if (DSN) {
     // include HTTP calls (outbound to Google Maps, PSI, Supabase) and
     // database queries via the automatic integrations.
     tracesSampleRate: 0.1,
+
+    // PII scrubbing for extras/contexts/tags. processJob passes the
+    // user-entered query and location as extras on failure — both
+    // count as PII and need to be redacted before leaving the box.
+    beforeSend(event) {
+      if (event.extra) event.extra = scrub(event.extra);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (event.contexts) event.contexts = scrub(event.contexts) as any;
+      if (event.tags) {
+        const cleanTags: Record<string, string | number | boolean | null | undefined> = {};
+        for (const [key, value] of Object.entries(event.tags)) {
+          cleanTags[key] = PII_KEYS.has(key)
+            ? "[redacted]"
+            : (value as string | number | boolean | null | undefined);
+        }
+        event.tags = cleanTags;
+      }
+      return event;
+    },
 
     // Node SDK automatically hooks process.on('uncaughtException') and
     // process.on('unhandledRejection') via the default integrations, so

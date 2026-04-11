@@ -78,24 +78,9 @@ async function handleCheckoutCompleted(
       return;
     }
 
-    // Read current balance
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("overage_credits")
-      .eq("id", userId)
-      .single();
-    const currentCredits =
-      (profile as { overage_credits: number } | null)?.overage_credits ?? 0;
-
-    // Credit the user
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ overage_credits: currentCredits + credits } as never)
-      .eq("id", userId);
-    if (updateError) throw new Error(`Failed to credit user: ${updateError.message}`);
-
-    // Record the purchase (unique constraint on stripe_session_id = second
-    // line of defense against double-credits)
+    // Insert the purchase row FIRST so the unique constraint on
+    // stripe_session_id acts as the idempotency guard. See the
+    // longer explanation in handlePaymentIntentSucceeded below.
     const { error: purchaseError } = await supabase
       .from("overage_purchases")
       .insert({
@@ -104,9 +89,30 @@ async function handleCheckoutCompleted(
         amount_cents: session.amount_total || 0,
         stripe_session_id: session.id,
       } as never);
-    if (purchaseError && purchaseError.code !== "23505") {
+    if (purchaseError) {
+      if (purchaseError.code === "23505") {
+        console.log(
+          `[Webhook] Session ${session.id} already credited — skipping duplicate`
+        );
+        return;
+      }
       throw new Error(`Failed to record purchase: ${purchaseError.message}`);
     }
+
+    // Read current balance and credit the user
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("overage_credits")
+      .eq("id", userId)
+      .single();
+    const currentCredits =
+      (profile as { overage_credits: number } | null)?.overage_credits ?? 0;
+
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ overage_credits: currentCredits + credits } as never)
+      .eq("id", userId);
+    if (updateError) throw new Error(`Failed to credit user: ${updateError.message}`);
 
     console.log(`[Webhook] Credited ${credits} overage results to user ${userId}`);
     return;
@@ -174,25 +180,14 @@ async function handlePaymentIntentSucceeded(
     return;
   }
 
-  // Read current balance
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("overage_credits")
-    .eq("id", userId)
-    .single();
-  const currentCredits =
-    (profile as { overage_credits: number } | null)?.overage_credits ?? 0;
-
-  // Credit the user
-  const { error: updateError } = await supabase
-    .from("profiles")
-    .update({ overage_credits: currentCredits + credits } as never)
-    .eq("id", userId);
-  if (updateError) throw new Error(`Failed to credit user: ${updateError.message}`);
-
-  // Record the purchase. Use payment_intent ID in stripe_session_id slot
-  // (the column is named "session" but functions as a generic Stripe ID
-  // for idempotency). The unique index on this column blocks duplicates.
+  // ORDER MATTERS: insert the purchase row FIRST (it has a unique
+  // constraint on stripe_session_id), THEN update the credit balance.
+  // This flipping prevents a double-credit scenario where the first
+  // attempt updates credits and then throws before inserting the
+  // purchase row — on Stripe's retry, the credit update would run
+  // again. By gating the credit update behind a successful purchase
+  // insert, a retry hits the unique violation on the purchase row
+  // and short-circuits before touching credits again.
   const { error: purchaseError } = await supabase
     .from("overage_purchases")
     .insert({
@@ -201,9 +196,37 @@ async function handlePaymentIntentSucceeded(
       amount_cents: paymentIntent.amount,
       stripe_session_id: paymentIntent.id,
     } as never);
-  if (purchaseError && purchaseError.code !== "23505") {
+
+  if (purchaseError) {
+    // Unique violation → this PI was already credited on an earlier
+    // attempt. Return success without touching the credit balance
+    // again — the previous attempt already handled it.
+    if (purchaseError.code === "23505") {
+      console.log(
+        `[Webhook] PI ${paymentIntent.id} already credited — skipping duplicate`
+      );
+      return;
+    }
     throw new Error(`Failed to record purchase: ${purchaseError.message}`);
   }
+
+  // Purchase row inserted — safe to credit now. Read the current
+  // balance and increment. If this update throws, a retry will hit
+  // the unique violation above and bail, so we won't double-credit
+  // even though the purchase row is already in place.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("overage_credits")
+    .eq("id", userId)
+    .single();
+  const currentCredits =
+    (profile as { overage_credits: number } | null)?.overage_credits ?? 0;
+
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({ overage_credits: currentCredits + credits } as never)
+    .eq("id", userId);
+  if (updateError) throw new Error(`Failed to credit user: ${updateError.message}`);
 
   console.log(
     `[Webhook] Credited ${credits} overage results to user ${userId} from PI ${paymentIntent.id}`

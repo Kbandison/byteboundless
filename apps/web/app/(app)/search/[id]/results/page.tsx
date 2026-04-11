@@ -157,6 +157,13 @@ export default function ResultsPage({
   const [jobQuery, setJobQuery] = useState("");
   const [jobLocation, setJobLocation] = useState("");
   const [loading, setLoading] = useState(true);
+  // Job status drives the in-progress banner. When the search is
+  // still running, the user can browse partial results that the
+  // worker has flushed so far. progress_current/progress_total feed
+  // the banner's progress bar.
+  const [jobStatus, setJobStatus] = useState<"pending" | "running" | "completed" | "failed">("running");
+  const [progressCurrent, setProgressCurrent] = useState(0);
+  const [progressTotal, setProgressTotal] = useState(0);
   const [savedBizIds, setSavedBizIds] = useState<Set<string>>(new Set());
   const [contactedBizIds, setContactedBizIds] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("score");
@@ -196,15 +203,24 @@ export default function ResultsPage({
     async function fetchData() {
       const supabase = createClient();
 
-      // Fetch job info
-      const { data: job } = await supabase.from("scrape_jobs").select("query, location").eq("id", id).single();
+      // Fetch job info — also pull status/progress so we know whether
+      // to render the in-progress banner.
+      const { data: job } = await supabase
+        .from("scrape_jobs")
+        .select("query, location, status, progress_current, progress_total")
+        .eq("id", id)
+        .single();
       if (job) {
         const j = job as Record<string, unknown>;
         setJobQuery(j.query as string);
         setJobLocation(j.location as string);
+        setJobStatus(j.status as typeof jobStatus);
+        setProgressCurrent((j.progress_current as number) ?? 0);
+        setProgressTotal((j.progress_total as number) ?? 0);
       }
 
-      // Fetch businesses
+      // Fetch businesses (whatever has been written so far — may be
+      // partial if the job is still running)
       const { data } = await supabase
         .from("businesses")
         .select("*")
@@ -236,6 +252,57 @@ export default function ResultsPage({
     }
     fetchData();
   }, [id]);
+
+  // Realtime: subscribe to job status updates AND new business inserts
+  // while the job is running. When status flips to completed, the
+  // banner disappears. New businesses landing during the search show
+  // up automatically + trigger a "+N new results" toast.
+  useEffect(() => {
+    if (jobStatus === "completed" || jobStatus === "failed") return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`results-${id}`)
+      // Job status / progress updates
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "scrape_jobs", filter: `id=eq.${id}` },
+        (payload) => {
+          const job = payload.new as Record<string, unknown>;
+          setJobStatus(job.status as typeof jobStatus);
+          setProgressCurrent((job.progress_current as number) ?? 0);
+          setProgressTotal((job.progress_total as number) ?? 0);
+        }
+      )
+      // New businesses landing in batches
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "businesses", filter: `job_id=eq.${id}` },
+        (payload) => {
+          const newBiz = parseBusiness(payload.new as Record<string, unknown>);
+          setBusinesses((prev) => {
+            // Dedupe by id in case a row arrives via both the initial
+            // fetch and a realtime event (rare race but worth handling)
+            if (prev.some((b) => b.id === newBiz.id)) return prev;
+            // Insert in score order
+            const next = [...prev, newBiz];
+            next.sort((a, b) => b.score - a.score);
+            return next;
+          });
+          // Toast for visibility — uses a stable id so rapid inserts
+          // collapse into one toast that updates instead of stacking
+          toast.success("New result added", {
+            id: "new-results-toast",
+            duration: 2500,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, jobStatus]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -392,8 +459,49 @@ export default function ResultsPage({
     return (<ResultsSkeleton />);
   }
 
+  const isInProgress = jobStatus === "running" || jobStatus === "pending";
+  const progressPct =
+    progressTotal > 0
+      ? Math.min(100, Math.round((progressCurrent / progressTotal) * 100))
+      : 0;
+
   return (
     <div className="max-w-7xl mx-auto px-6 md:px-8 py-8">
+      {/* In-progress banner — shown only while the search is still
+          running. Lets the user browse the results that have been
+          flushed so far while the rest of the search continues. The
+          banner disappears via realtime when status flips to completed. */}
+      {isInProgress && (
+        <div className="mb-6 p-4 rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5">
+          <div className="flex items-start gap-3">
+            <div className="w-2 h-2 rounded-full bg-[var(--color-accent)] mt-2 animate-pulse shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                Search still in progress
+              </p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1 leading-relaxed">
+                {businesses.length > 0
+                  ? `Showing ${businesses.length} ${businesses.length === 1 ? "result" : "results"} scored so far. New results will land automatically as the search continues — you can sort, filter, save, and pitch the visible ones now.`
+                  : "Waiting for the first batch of scored results to land. This usually takes a couple minutes for searches with Lighthouse audits enabled."}
+              </p>
+              {progressTotal > 0 && (
+                <div className="mt-3 flex items-center gap-3">
+                  <div className="flex-1 h-1.5 rounded-full bg-[var(--color-bg-secondary)] overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[var(--color-accent)] transition-all duration-700 ease-out"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-[family-name:var(--font-mono)] text-[var(--color-text-dim)] whitespace-nowrap">
+                    {progressCurrent}/{progressTotal}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>

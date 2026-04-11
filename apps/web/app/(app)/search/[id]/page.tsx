@@ -134,6 +134,14 @@ export default function SearchRunningPage({
   // a generic "waiting for worker" we explain that their other job is
   // running first and theirs will start as soon as that one finishes.
   const [waitingOnOwnJob, setWaitingOnOwnJob] = useState(false);
+  // Live activity string from the worker — what it's processing right
+  // now ("Extracting Joe's Plumbing", "Scoring Anaheim Garage Door").
+  // Drives the typewriter ticker shown under the phase card.
+  const [currentActivity, setCurrentActivity] = useState<string | null>(null);
+  // Count of partial results that have already been written to the
+  // businesses table for this job. Drives the "View results so far"
+  // CTA — appears the moment the worker flushes its first batch.
+  const [partialResultCount, setPartialResultCount] = useState(0);
 
   // Use a ref for startedAt inside the fetch so we don't need to list it
   // as a dep on useCallback (which would cause the callback to change on
@@ -164,6 +172,7 @@ export default function SearchRunningPage({
     setCurrent(job.progress_current as number);
     setTotal(job.progress_total as number);
     setError(job.error as string | null);
+    setCurrentActivity((job.current_activity as string | null) ?? null);
 
     if (job.status === "completed") {
       const { count } = await supabase
@@ -171,6 +180,15 @@ export default function SearchRunningPage({
         .select("id", { count: "exact", head: true })
         .eq("job_id", id);
       setResultCount(count ?? 0);
+    } else if (job.status === "running") {
+      // While the job is running, count how many businesses the
+      // worker has flushed so far. The button to "View results so
+      // far" only appears once this is > 0.
+      const { count } = await supabase
+        .from("businesses")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", id);
+      setPartialResultCount(count ?? 0);
     }
 
     // Fairness check: if the current job is pending, look for ANY
@@ -215,7 +233,12 @@ export default function SearchRunningPage({
     return () => clearInterval(interval);
   }, [status, startedAt]);
 
-  // Realtime subscription
+  // Realtime subscription. Two channels:
+  //   1. UPDATE on scrape_jobs — phase/progress/activity changes
+  //   2. INSERT on businesses — partial result batches landing
+  // The second one keeps partialResultCount fresh so the "View
+  // results so far" CTA appears the moment the worker flushes its
+  // first batch (without needing to refetch).
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -230,10 +253,18 @@ export default function SearchRunningPage({
           setCurrent(job.progress_current as number);
           setTotal(job.progress_total as number);
           setError(job.error as string | null);
+          setCurrentActivity((job.current_activity as string | null) ?? null);
 
           if (job.status === "completed") {
             fetchJob(); // Re-fetch to get result count
           }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "businesses", filter: `job_id=eq.${id}` },
+        () => {
+          setPartialResultCount((c) => c + 1);
         }
       )
       .subscribe();
@@ -286,6 +317,33 @@ export default function SearchRunningPage({
             {phase === "enriching" && `Enriching websites: ${current} of ${total} sites scanned for tech stack, emails, and socials`}
             {phase === "scoring" && `Scoring leads: ${current} of ${total} analyzed`}
           </p>
+        )}
+
+        {/* Live activity ticker — what the worker is doing right now.
+            Truncated to a single line via CSS so long business names
+            don't push the layout around. Only shown while the search
+            is actively running. */}
+        {status === "running" && currentActivity && (
+          <p
+            className="text-xs text-[var(--color-text-dim)] font-[family-name:var(--font-mono)] mt-2 truncate max-w-full"
+            title={currentActivity}
+          >
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] mr-2 animate-pulse align-middle" />
+            {currentActivity}
+          </p>
+        )}
+
+        {/* "View results so far" CTA — appears the moment the worker
+            flushes its first batch of scored businesses. The user can
+            start reviewing leads while the rest of the search continues. */}
+        {status === "running" && partialResultCount > 0 && (
+          <Link
+            href={`/search/${id}/results`}
+            className="group inline-flex items-center gap-2 mt-4 text-sm font-medium text-[var(--color-accent)] hover:underline"
+          >
+            View {partialResultCount} {partialResultCount === 1 ? "result" : "results"} so far
+            <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+          </Link>
         )}
       </div>
 

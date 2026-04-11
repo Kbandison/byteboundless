@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter_Tight } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { SmoothScrollProvider } from "@/components/layout/smooth-scroll-provider";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -113,6 +114,11 @@ export default function RootLayout({
             },
           }}
         />
+        {/* Vercel Analytics — fires a lightweight script on every
+            route change that reports page views and unique visitors
+            to the Analytics tab of the Vercel dashboard. No config
+            needed; it auto-detects the project from the deployment. */}
+        <Analytics />
       </body>
     </html>
   );

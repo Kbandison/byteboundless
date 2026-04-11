@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 
-export const metadata = {
-  title: "Privacy Policy — ByteBoundless",
-  description: "How ByteBoundless handles your data.",
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description:
+    "How ByteBoundless handles your data — what we collect, how we use it, and how to exercise your rights under GDPR and CCPA.",
+  alternates: { canonical: "/privacy" },
+  robots: { index: true, follow: true },
 };
 
 export default function PrivacyPage() {

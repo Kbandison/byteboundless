@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 
-export const metadata = {
-  title: "Terms of Service — ByteBoundless",
-  description: "Terms governing the use of ByteBoundless.",
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description:
+    "Terms governing the use of ByteBoundless — subscription, billing, acceptable use, and intellectual property.",
+  alternates: { canonical: "/terms" },
+  robots: { index: true, follow: true },
 };
 
 export default function TermsPage() {

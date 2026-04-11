@@ -1,12 +1,28 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { HowItWorks } from "@/components/sections/how-it-works";
 import { Footer } from "@/components/layout/footer";
 
-export const metadata = {
-  title: "How It Works — ByteBoundless",
-  description: "From search to signed client — see the full ByteBoundless workflow.",
+export const metadata: Metadata = {
+  title: "How It Works",
+  description:
+    "See the full ByteBoundless workflow: scrape Google Maps, enrich every site with tech stack and Lighthouse audits, score leads 0–100, generate AI pitches, and track outreach from saved to signed.",
+  alternates: { canonical: "/how-it-works" },
+  openGraph: {
+    title: "How It Works — ByteBoundless",
+    description:
+      "From search to signed client — scrape, score, pitch, and close with ByteBoundless.",
+    url: "https://byteboundless.io/how-it-works",
+    type: "article",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "How It Works — ByteBoundless",
+    description:
+      "From search to signed client — scrape, score, pitch, and close with ByteBoundless.",
+  },
 };
 
 export default function HowItWorksPage() {

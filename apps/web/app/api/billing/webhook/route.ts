@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 import { getStripe, planFromSubscription } from "@/lib/stripe";
+import {
+  sendSubscriptionWelcomeEmail,
+  sendSubscriptionPastDueEmail,
+  sendSubscriptionCanceledEmail,
+} from "@/lib/email";
 
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -224,6 +229,20 @@ async function handleSubscriptionUpdated(
     return;
   }
 
+  // Read the previous state so we can detect transitions (e.g. fresh
+  // activation → welcome email, active → past_due → warning email).
+  const { data: prevProfile } = await supabase
+    .from("profiles")
+    .select("plan, stripe_subscription_id, email")
+    .eq("id", userId)
+    .single();
+  const prev =
+    (prevProfile as {
+      plan: string;
+      stripe_subscription_id: string | null;
+      email: string;
+    } | null) ?? null;
+
   // If the subscription is no longer active/trialing, revert to free.
   // (customer.subscription.deleted handles the terminal case, but
   // 'incomplete_expired' / 'unpaid' / 'canceled' can also arrive here.)
@@ -258,6 +277,35 @@ async function handleSubscriptionUpdated(
   if (error) throw new Error(`Failed to update plan: ${error.message}`);
 
   console.log(`[Webhook] User ${userId} plan set to ${plan} from subscription update`);
+
+  // ------------------------------------------------------------
+  // Lifecycle emails
+  // ------------------------------------------------------------
+  // Welcome: fires when a free/un-subscribed user activates a plan.
+  // We detect that by looking at the previous plan — if it wasn't pro
+  // or agency, this is their first time crossing the paywall.
+  if (prev?.email && prev.plan !== "pro" && prev.plan !== "agency") {
+    try {
+      await sendSubscriptionWelcomeEmail({
+        userId,
+        email: prev.email,
+        plan,
+      });
+    } catch (err) {
+      console.error("[Webhook] Failed to send welcome email:", err);
+    }
+  }
+
+  // Past-due warning: fires when Stripe flips the subscription into
+  // past_due after a failed charge. Only send once per transition
+  // (when the previous status wasn't already past_due).
+  if (subscription.status === "past_due" && prev?.email) {
+    try {
+      await sendSubscriptionPastDueEmail({ userId, email: prev.email });
+    } catch (err) {
+      console.error("[Webhook] Failed to send past-due email:", err);
+    }
+  }
 }
 
 /**
@@ -277,6 +325,10 @@ async function handleSubscriptionDeleted(
     return;
   }
 
+  // Capture the email before we revert the plan — nothing in this row
+  // actually changes email, but reading pre-update is cleaner.
+  const email = await lookupUserEmail(supabase, userId);
+
   const { error } = await supabase
     .from("profiles")
     .update({ plan: "free", stripe_subscription_id: null } as never)
@@ -284,6 +336,14 @@ async function handleSubscriptionDeleted(
   if (error) throw new Error(`Failed to revert plan: ${error.message}`);
 
   console.log(`[Webhook] User ${userId} subscription deleted — reverted to free`);
+
+  if (email) {
+    try {
+      await sendSubscriptionCanceledEmail({ userId, email });
+    } catch (err) {
+      console.error("[Webhook] Failed to send canceled email:", err);
+    }
+  }
 }
 
 async function lookupUserIdBySubscription(
@@ -296,6 +356,21 @@ async function lookupUserIdBySubscription(
     .eq("stripe_subscription_id", subscriptionId)
     .single();
   return (data as { id: string } | null)?.id ?? null;
+}
+
+// Fetch a user's email for transactional notifications. Returns null
+// if the profile is missing — callers should skip sending silently
+// rather than fail the webhook.
+async function lookupUserEmail(
+  supabase: ReturnType<typeof getAdminClient>,
+  userId: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .single();
+  return (data as { email: string } | null)?.email ?? null;
 }
 
 // ============================================================

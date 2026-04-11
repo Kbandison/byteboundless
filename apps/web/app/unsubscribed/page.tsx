@@ -36,7 +36,11 @@ export default async function UnsubscribedPage({
         </div>
 
         <h1 className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight mb-2">
-          {isError ? "Couldn't unsubscribe" : "You're unsubscribed"}
+          {isError
+            ? "Couldn't unsubscribe"
+            : kind === "subscription" || kind === "beta"
+              ? "These emails are required"
+              : "You're unsubscribed"}
         </h1>
 
         <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-6">
@@ -52,10 +56,20 @@ export default async function UnsubscribedPage({
               progress still shows in your dashboard, and you can re-enable
               these emails any time from your settings.
             </>
-          ) : (
+          ) : kind === "subscription" ? (
             <>
-              Your notification preference has been updated.
+              Subscription emails (payment failures, cancellations, receipts)
+              are transactional and can&apos;t be turned off while you have an
+              active account. You can manage other email preferences below.
             </>
+          ) : kind === "beta" ? (
+            <>
+              Beta access reminders are transactional and only sent while you
+              have an active beta membership. They stop automatically once
+              your beta expires.
+            </>
+          ) : (
+            <>Your notification preference has been updated.</>
           )}
         </p>
 

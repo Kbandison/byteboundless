@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/beta-expiration",
+      "schedule": "0 14 * * *"
+    }
+  ]
+}

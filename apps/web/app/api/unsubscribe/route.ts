@@ -17,12 +17,22 @@ import { createClient } from "@supabase/supabase-js";
  * the secret, which only lives on the server.
  *
  * `kind` identifies which preference to toggle off:
- *   - "notify_on_complete" → search-complete emails
+ *   - "notify_on_complete" → search-complete emails (opt-out honored)
+ *   - "subscription" → Stripe lifecycle emails (transactional, no-op)
+ *   - "beta" → beta expiration reminders (transactional, no-op)
+ *
+ * Transactional kinds still need a working endpoint because Gmail's
+ * List-Unsubscribe-Post spec requires the URL to return 200 — but we
+ * don't actually turn anything off, because users can't opt out of
+ * mandatory lifecycle emails. They just get redirected to /settings.
  *
  * Design: GET redirects to a friendly confirmation page. POST returns
  * 200 with a JSON body so the bulk-unsub button in Gmail doesn't show
  * an error.
  */
+
+const VALID_KINDS = new Set(["notify_on_complete", "subscription", "beta"]);
+const TRANSACTIONAL_KINDS = new Set(["subscription", "beta"]);
 export async function GET(request: Request) {
   try {
     return await handleUnsubscribe(request, "get");
@@ -51,7 +61,7 @@ async function handleUnsubscribe(request: Request, method: "get" | "post") {
   if (!userId || !kind || !sig) {
     return errorResponse(method, origin, "Missing parameters");
   }
-  if (kind !== "notify_on_complete") {
+  if (!VALID_KINDS.has(kind)) {
     return errorResponse(method, origin, "Unknown preference");
   }
 
@@ -76,6 +86,15 @@ async function handleUnsubscribe(request: Request, method: "get" | "post") {
 
   if (!valid) {
     return errorResponse(method, origin, "Invalid signature");
+  }
+
+  // Transactional kinds (subscription / beta): sig is valid so we know
+  // this came from a real email, but we don't actually flip anything —
+  // users can't opt out of lifecycle notifications. Return 200 for POST
+  // (Gmail's one-click) and redirect GET to a "manage settings" page.
+  if (TRANSACTIONAL_KINDS.has(kind)) {
+    if (method === "post") return NextResponse.json({ ok: true });
+    return NextResponse.redirect(`${origin}/unsubscribed?kind=${kind}`);
   }
 
   // Flip the preference off. Service-role client bypasses RLS since

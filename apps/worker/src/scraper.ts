@@ -74,6 +74,16 @@ export interface ScrapeOptions {
   radius: SearchRadius;
   maxResults: number;
   enrich: boolean;
+  /**
+   * Whether to run Lighthouse audits during enrichment. Set to false
+   * for free-plan users (Lighthouse is a Pro-tier feature per the
+   * marketing pricing page). The search API decides this based on
+   * the user's plan at job creation time and passes it through.
+   *
+   * Defaults to true if undefined so existing jobs in the queue from
+   * before this flag existed still run as they did.
+   */
+  runLighthouse?: boolean;
   contexts?: number;
   scrolls?: number;
 }
@@ -594,7 +604,11 @@ async function scrapeDetailsParallel(
 // ──────────────────────────────────────────────────────────────────
 // Reverse mode: enrich a list of URLs directly (skip Google Maps)
 // ──────────────────────────────────────────────────────────────────
-export async function runUrlEnrich(urls: string[], onProgress: ProgressCallback): Promise<RawBusiness[]> {
+export async function runUrlEnrich(
+  urls: string[],
+  onProgress: ProgressCallback,
+  runLighthouse = true
+): Promise<RawBusiness[]> {
   // Build minimal business records from URLs
   const businesses: RawBusiness[] = urls.map((url) => {
     // Extract a readable name from the URL
@@ -625,15 +639,18 @@ export async function runUrlEnrich(urls: string[], onProgress: ProgressCallback)
   );
 
   // Lighthouse pass (sequential — runLighthouseAudit handles retry + timeouts)
-  for (let i = 0; i < enriched.length; i++) {
-    const b = enriched[i];
-    const e = b.enrichment as Record<string, unknown> | undefined;
-    const url = (e?.finalUrl as string) || b.website;
-    if (!url || !e?.reachable) continue;
+  // Gated behind `runLighthouse` so free-plan users skip it (Pro+ feature).
+  if (runLighthouse) {
+    for (let i = 0; i < enriched.length; i++) {
+      const b = enriched[i];
+      const e = b.enrichment as Record<string, unknown> | undefined;
+      const url = (e?.finalUrl as string) || b.website;
+      if (!url || !e?.reachable) continue;
 
-    const lh = await runLighthouseAudit(url);
-    if (lh) (e as Record<string, unknown>).lighthouse = lh;
-    await sleep(PSI_DELAY_BETWEEN_MS);
+      const lh = await runLighthouseAudit(url);
+      if (lh) (e as Record<string, unknown>).lighthouse = lh;
+      await sleep(PSI_DELAY_BETWEEN_MS);
+    }
   }
 
   // Phase: Score
@@ -675,7 +692,12 @@ export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallbac
   }
 
   // Phase 3.5: Lighthouse (sequential — runLighthouseAudit handles retry + timeouts)
-  if (opts.enrich) {
+  // Gated behind `runLighthouse` — free-plan users skip this phase
+  // entirely since Lighthouse audits are a Pro+ feature per the pricing
+  // page. `runLighthouse === undefined` defaults to true so older jobs
+  // created before this flag existed still behave the same.
+  const shouldRunLighthouse = opts.enrich && opts.runLighthouse !== false;
+  if (shouldRunLighthouse) {
     const reachableCount = enriched.filter((b) => (b.enrichment as Record<string, unknown> | undefined)?.reachable).length;
     const hasKey = Boolean(process.env.GOOGLE_PSI_API_KEY);
     console.log(

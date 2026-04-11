@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@byteboundless/supabase";
 
@@ -6,6 +7,16 @@ type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type ScrapeJob = Database["public"]["Tables"]["scrape_jobs"]["Row"];
 
 export async function POST(request: Request) {
+  try {
+    return await handleSearch(request);
+  } catch (err) {
+    Sentry.captureException(err, { tags: { route: "api/search" } });
+    const message = err instanceof Error ? err.message : "Internal error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function handleSearch(request: Request) {
   const supabase = await createClient();
 
   const {
@@ -75,9 +86,18 @@ export async function POST(request: Request) {
   const planMaxResults: Record<string, number> = { free: 50, pro: 500, agency: 1000 };
   const baseMax = planMaxResults[profile?.plan ?? "free"] ?? 50;
   const maxAllowed = overageCredits > 0 ? baseMax + overageCredits : baseMax;
+
+  // Lighthouse audits are a Pro+ feature per the pricing page. Free
+  // users get the rest of enrichment (tech stack, emails, socials,
+  // mobile viewport check, copyright year) but the worker skips the
+  // PSI phase. Admins and beta users have plan='agency' so they get
+  // Lighthouse via the same check.
+  const runLighthouse = (profile?.plan ?? "free") !== "free";
+
   const clampedOptions = {
     ...(options ?? { radius: "nearby", maxResults: 50, enrich: true }),
     maxResults: Math.min(options?.maxResults ?? 50, maxAllowed),
+    runLighthouse,
   };
 
   // Create the scrape job

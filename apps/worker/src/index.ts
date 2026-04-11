@@ -239,8 +239,19 @@ const progressCallback = (jobId: string) => async (phase: string, current: numbe
 
 async function processJob(job: Record<string, unknown>) {
   const jobId = job.id as string;
-  const options = job.options as { radius?: string; strict?: boolean; maxResults: number; enrich: boolean; mode?: string; urls?: string[] };
+  const options = job.options as {
+    radius?: string;
+    strict?: boolean;
+    maxResults: number;
+    enrich: boolean;
+    runLighthouse?: boolean;
+    mode?: string;
+    urls?: string[];
+  };
   const isUrlMode = options.mode === "urls" && Array.isArray(options.urls) && options.urls.length > 0;
+  // Default to true when undefined so older jobs in the queue still
+  // behave as they did before this flag existed.
+  const runLighthouse = options.runLighthouse !== false;
 
   if (isUrlMode) {
     console.log(`[Worker] Processing URL import job ${jobId}: ${options.urls!.length} URLs`);
@@ -254,7 +265,7 @@ async function processJob(job: Record<string, unknown>) {
 
     if (isUrlMode) {
       // Reverse mode: skip Google Maps, go straight to enrichment
-      results = await runUrlEnrich(options.urls!, progressCallback(jobId));
+      results = await runUrlEnrich(options.urls!, progressCallback(jobId), runLighthouse);
     } else {
       const radius = (options.radius || (options.strict ? "city" : "nearby")) as "city" | "nearby" | "region" | "statewide";
       results = await runScrape(
@@ -264,6 +275,7 @@ async function processJob(job: Record<string, unknown>) {
           radius,
           maxResults: options.maxResults,
           enrich: options.enrich,
+          runLighthouse,
         },
         progressCallback(jobId)
       );

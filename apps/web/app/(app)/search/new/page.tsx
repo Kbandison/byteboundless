@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Search, MapPin, Globe, SlidersHorizontal, Loader2, Lock } from "lucide-react";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
@@ -335,6 +336,19 @@ function NewSearchForm() {
           </div>
           <Toggle id="enrich" checked={enrich} onChange={setEnrich} />
         </div>
+
+        {/* Free plan: note that Lighthouse is Pro+ */}
+        {plan === "free" && enrich && (
+          <div className="p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 text-xs text-[var(--color-text-secondary)] leading-relaxed">
+            <strong className="text-[var(--color-text-primary)]">Free plan:</strong>{" "}
+            Enrichment still collects tech stack, emails, socials, and mobile-viewport signals — but{" "}
+            <strong>Lighthouse audits</strong> (performance / SEO / accessibility scores) are a{" "}
+            <Link href="/settings#billing" className="text-[var(--color-accent)] hover:underline font-medium">
+              Pro feature
+            </Link>
+            . Your searches finish noticeably faster as a result.
+          </div>
+        )}
       </div>
         </>
       )}

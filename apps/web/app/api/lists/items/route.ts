@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requirePaidPlan } from "@/lib/plan-gate";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const gated = await requirePaidPlan(supabase, user.id);
+  if (gated) return gated;
 
   const body = await request.json();
   const { listId, businessId, businessIds } = body as {

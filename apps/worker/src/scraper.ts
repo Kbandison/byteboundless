@@ -10,6 +10,62 @@ const ENRICH_CONCURRENCY = 12;
 const FETCH_TIMEOUT_MS = 10000;
 const MAX_PAGES_PER_SITE = 3;
 
+// Lighthouse / PageSpeed Insights API tuning.
+// Mobile audits normally take 25-40s per request; a 20s timeout aborts
+// before Google has a chance to respond. First try generous (45s),
+// retry once at 60s for slow sites, then give up and move on. Without
+// a GOOGLE_PSI_API_KEY you share the global public rate limit and
+// will time out much more aggressively.
+const PSI_TIMEOUT_MS = 45_000;
+const PSI_RETRY_TIMEOUT_MS = 60_000;
+const PSI_DELAY_BETWEEN_MS = 1500;
+
+interface LighthouseScores {
+  performance: number;
+  seo: number;
+  accessibility: number;
+}
+
+/**
+ * Run a single Lighthouse audit with one retry on timeout. Returns
+ * the scores on success, or null on any failure (timeout, HTTP error,
+ * malformed response). Never throws — the caller is expected to
+ * gracefully skip sites that can't be audited.
+ */
+async function runLighthouseAudit(url: string): Promise<LighthouseScores | null> {
+  const psiKey = process.env.GOOGLE_PSI_API_KEY ? `&key=${process.env.GOOGLE_PSI_API_KEY}` : "";
+  const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile${psiKey}`;
+
+  async function attempt(timeoutMs: number): Promise<LighthouseScores | null | "timeout"> {
+    try {
+      const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(timeoutMs) });
+      if (!psiRes.ok) return null;
+      const psi = await psiRes.json();
+      const cats = psi.lighthouseResult?.categories;
+      if (!cats) return null;
+      return {
+        performance: Math.round((cats.performance?.score ?? 0) * 100),
+        seo: Math.round((cats.seo?.score ?? 0) * 100),
+        accessibility: Math.round((cats.accessibility?.score ?? 0) * 100),
+      };
+    } catch (err) {
+      // AbortError from the timeout signal — return a sentinel so the
+      // caller knows to retry with a longer timeout
+      if ((err as Error).name === "TimeoutError" || (err as Error).name === "AbortError") {
+        return "timeout";
+      }
+      return null;
+    }
+  }
+
+  const first = await attempt(PSI_TIMEOUT_MS);
+  if (first === "timeout") {
+    const second = await attempt(PSI_RETRY_TIMEOUT_MS);
+    return second === "timeout" ? null : second;
+  }
+  return first;
+}
+
 export type SearchRadius = "city" | "nearby" | "region" | "statewide";
 
 export interface ScrapeOptions {
@@ -568,29 +624,16 @@ export async function runUrlEnrich(urls: string[], onProgress: ProgressCallback)
     (done, total) => onProgress("enriching", done, total)
   );
 
-  // Lighthouse pass (sequential)
+  // Lighthouse pass (sequential — runLighthouseAudit handles retry + timeouts)
   for (let i = 0; i < enriched.length; i++) {
     const b = enriched[i];
     const e = b.enrichment as Record<string, unknown> | undefined;
     const url = (e?.finalUrl as string) || b.website;
     if (!url || !e?.reachable) continue;
-    try {
-      const psiKey = process.env.GOOGLE_PSI_API_KEY ? `&key=${process.env.GOOGLE_PSI_API_KEY}` : "";
-        const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile${psiKey}`;
-      const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(20000) });
-      if (psiRes.ok) {
-        const psi = await psiRes.json();
-        const cats = psi.lighthouseResult?.categories;
-        if (cats) {
-          (e as Record<string, unknown>).lighthouse = {
-            performance: Math.round((cats.performance?.score ?? 0) * 100),
-            seo: Math.round((cats.seo?.score ?? 0) * 100),
-            accessibility: Math.round((cats.accessibility?.score ?? 0) * 100),
-          };
-        }
-      }
-    } catch { /* skip */ }
-    await sleep(1500);
+
+    const lh = await runLighthouseAudit(url);
+    if (lh) (e as Record<string, unknown>).lighthouse = lh;
+    await sleep(PSI_DELAY_BETWEEN_MS);
   }
 
   // Phase: Score
@@ -631,46 +674,41 @@ export async function runScrape(opts: ScrapeOptions, onProgress: ProgressCallbac
     );
   }
 
-  // Phase 3.5: Lighthouse (sequential, 1 at a time to avoid rate limits)
+  // Phase 3.5: Lighthouse (sequential — runLighthouseAudit handles retry + timeouts)
   if (opts.enrich) {
     const reachableCount = enriched.filter((b) => (b.enrichment as Record<string, unknown> | undefined)?.reachable).length;
-    console.log(`[Scraper] Running Lighthouse audits for ${reachableCount} reachable sites...`);
+    const hasKey = Boolean(process.env.GOOGLE_PSI_API_KEY);
+    console.log(
+      `[Scraper] Running Lighthouse audits for ${reachableCount} reachable sites${hasKey ? "" : " (no GOOGLE_PSI_API_KEY — using public rate limit)"}`
+    );
+
+    let succeeded = 0;
+    let failed = 0;
+
     for (let i = 0; i < enriched.length; i++) {
       const b = enriched[i];
       const e = b.enrichment as Record<string, unknown> | undefined;
       const url = (e?.finalUrl as string) || b.website;
-      if (!url || !e?.reachable) continue;
+      if (!url || !e?.reachable) {
+        onProgress("scoring", i + 1, enriched.length);
+        continue;
+      }
 
-      try {
-        const psiKey = process.env.GOOGLE_PSI_API_KEY ? `&key=${process.env.GOOGLE_PSI_API_KEY}` : "";
-        const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=seo&category=accessibility&strategy=mobile${psiKey}`;
-        const psiRes = await fetch(psiUrl, { signal: AbortSignal.timeout(20000) });
-        if (psiRes.ok) {
-          const psi = await psiRes.json();
-          const cats = psi.lighthouseResult?.categories;
-          if (cats) {
-            const lh = {
-              performance: Math.round((cats.performance?.score ?? 0) * 100),
-              seo: Math.round((cats.seo?.score ?? 0) * 100),
-              accessibility: Math.round((cats.accessibility?.score ?? 0) * 100),
-            };
-            // Mutate the enrichment object directly
-            (b.enrichment as Record<string, unknown>).lighthouse = lh;
-            console.log(`[Lighthouse] ${b.name}: perf=${lh.performance} seo=${lh.seo} a11y=${lh.accessibility}`);
-          } else {
-            console.log(`[Lighthouse] ${b.name}: no categories in response`);
-          }
-        } else {
-          console.log(`[Lighthouse] ${b.name}: HTTP ${psiRes.status}`);
-        }
-      } catch (err) {
-        console.log(`[Lighthouse] ${b.name}: ${(err as Error).message}`);
+      const lh = await runLighthouseAudit(url);
+      if (lh) {
+        (b.enrichment as Record<string, unknown>).lighthouse = lh;
+        succeeded++;
+        console.log(`[Lighthouse] ${b.name}: perf=${lh.performance} seo=${lh.seo} a11y=${lh.accessibility}`);
+      } else {
+        failed++;
+        console.log(`[Lighthouse] ${b.name}: failed (timeout or API error)`);
       }
 
       onProgress("scoring", i + 1, enriched.length);
-      // 2s delay between API calls to respect rate limits
-      await sleep(2000);
+      await sleep(PSI_DELAY_BETWEEN_MS);
     }
+
+    console.log(`[Scraper] Lighthouse pass done: ${succeeded} succeeded, ${failed} failed`);
   }
 
   // Phase 4: Score

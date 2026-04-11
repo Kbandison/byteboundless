@@ -1,14 +1,23 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Elements } from "@stripe/react-stripe-js";
 import type { Appearance } from "@stripe/stripe-js";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { getStripeClient } from "@/lib/stripe-client";
 import { CheckoutForm } from "./checkout-form";
 import { OrderSummary, type Plan, type CheckoutType } from "./order-summary";
+
+interface UpgradePreview {
+  fromPlan: Plan;
+  toPlan: Plan;
+  subscriptionId: string;
+  prorationAmountCents: number;
+  prorationCurrency: string | null;
+  isCredit: boolean;
+}
 
 // Hoisted outside the component so Stripe Elements doesn't re-init on
 // every render (Elements only re-mounts when `options` reference changes).
@@ -78,16 +87,30 @@ function CheckoutInner() {
   const plan = searchParams.get("plan") as Plan | null;
 
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [upgradePreview, setUpgradePreview] = useState<UpgradePreview | null>(null);
+  const [upgradeSubmitting, setUpgradeSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  /* This effect bootstraps the checkout: validates input and POSTs to
-     create a Stripe payment session. setState calls happen inside the
-     async IIFE after an await, so they're not "synchronously within an
-     effect" — but the lint rule can't see through the function call. */
-  /* eslint-disable react-hooks/set-state-in-effect */
+  // Strict-Mode guard. React mounts → unmounts → remounts every effect
+  // in dev to surface missing cleanup. Without this ref, the fetch
+  // below fires twice and each fire creates its own Stripe subscription
+  // on the server — which is a real bug (duplicate subs, race between
+  // two clientSecrets, Payment Element remount crashes) and NOT just a
+  // dev quirk. The server side was also made idempotent for defense in
+  // depth; this ref is the first line of defense.
+  //
+  // The key is (type, plan) so the effect still re-fires if the user
+  // changes the plan in-place (they can't today, but keeping it correct
+  // costs nothing).
+  const fetchedKeyRef = useRef<string | null>(null);
+
+  // This effect bootstraps the checkout: validates input and POSTs
+  // to create a Stripe payment session.
   useEffect(() => {
-    let cancelled = false;
+    const key = `${type}:${plan ?? ""}`;
+    if (fetchedKeyRef.current === key) return;
+    fetchedKeyRef.current = key;
 
     if (type === "subscription" && plan !== "pro" && plan !== "agency") {
       setError("Invalid plan");
@@ -107,18 +130,39 @@ function CheckoutInner() {
           body: JSON.stringify(body),
         });
         const data = await res.json();
-        if (cancelled) return;
 
         if (!res.ok) {
+          // "Already on this plan" is not an error the user needs to
+          // see — it just means they landed on /checkout for a plan
+          // they already have. Bounce them to settings where card /
+          // cancel / plan change lives.
+          if (
+            typeof data.error === "string" &&
+            /already on this plan/i.test(data.error)
+          ) {
+            router.replace("/settings#billing");
+            return;
+          }
           setError(data.error || "Failed to start checkout");
           setLoading(false);
           return;
         }
 
-        // Existing-subscription users get a Billing Portal URL back
-        // instead of a clientSecret. Bounce them straight to it.
+        // Legacy portal redirect path — kept for safety but the
+        // subscribe API no longer returns portalUrl after the native
+        // subscription management migration.
         if (data.portalUrl) {
           window.location.href = data.portalUrl;
+          return;
+        }
+
+        // Pro↔Agency plan change → render the upgrade confirmation
+        // card. No Payment Element needed since the user's card is
+        // already on file; Stripe will bill proration on the next
+        // invoice when they confirm.
+        if (data.upgrade) {
+          setUpgradePreview(data.upgrade as UpgradePreview);
+          setLoading(false);
           return;
         }
 
@@ -131,18 +175,49 @@ function CheckoutInner() {
         setClientSecret(data.clientSecret);
         setLoading(false);
       } catch (err) {
-        if (cancelled) return;
         const message = err instanceof Error ? err.message : "Failed to load checkout";
         setError(message);
         setLoading(false);
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
+    // router is stable across renders (useRouter returns a memoized
+    // instance) so omitting it from deps is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, plan]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+
+  async function handleConfirmUpgrade() {
+    if (!upgradePreview) return;
+    setUpgradeSubmitting(true);
+    try {
+      const res = await fetch("/api/billing/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: upgradePreview.toPlan, confirmUpgrade: true }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.upgraded) {
+        toast.error(data.error || "Couldn't update your plan");
+        setUpgradeSubmitting(false);
+        return;
+      }
+      toast.success(
+        `Upgraded to ${upgradePreview.toPlan === "agency" ? "Agency" : "Pro"}`
+      );
+      // router.replace (not push) so hitting Back from /settings skips
+      // past the /checkout entry entirely — otherwise the stale
+      // confirmation card would re-render with an "already on this
+      // plan" state. router.refresh forces server components to
+      // re-fetch so the settings page shows the new plan immediately.
+      router.replace(
+        `/settings?subscribe=plan-updated&plan=${upgradePreview.toPlan}#billing`
+      );
+      router.refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upgrade failed";
+      toast.error(message);
+      setUpgradeSubmitting(false);
+    }
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-6 md:px-8 py-12">
@@ -156,12 +231,14 @@ function CheckoutInner() {
 
       <div className="mb-10">
         <p className="text-xs uppercase tracking-[0.15em] text-[var(--color-accent)] font-medium font-[family-name:var(--font-mono)] mb-2">
-          Checkout
+          {upgradePreview ? "Change plan" : "Checkout"}
         </p>
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">
-          {type === "subscription"
-            ? `Upgrade to ${plan === "agency" ? "Agency" : "Pro"}`
-            : "Buy Extra Results"}
+          {upgradePreview
+            ? `${upgradePreview.fromPlan === "agency" ? "Agency" : "Pro"} → ${upgradePreview.toPlan === "agency" ? "Agency" : "Pro"}`
+            : type === "subscription"
+              ? `Upgrade to ${plan === "agency" ? "Agency" : "Pro"}`
+              : "Buy Extra Results"}
         </h1>
       </div>
 
@@ -178,21 +255,32 @@ function CheckoutInner() {
           )}
 
           {error && !loading && (
-            <div className="p-6 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900/40">
-              <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-1">
+            <div className="p-6 rounded-xl border border-red-500/40 bg-red-500/5">
+              <p className="text-sm font-semibold text-red-600 mb-1">
                 Couldn&apos;t start checkout
               </p>
-              <p className="text-xs text-red-600 dark:text-red-300 mb-4">{error}</p>
+              <p className="text-xs text-[var(--color-text-secondary)] mb-4">
+                {error}
+              </p>
               <button
                 onClick={() => router.push("/settings#billing")}
-                className="text-xs text-red-700 dark:text-red-400 underline"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-accent)] hover:underline"
               >
                 Back to billing settings
               </button>
             </div>
           )}
 
-          {clientSecret && !loading && !error ? (
+          {upgradePreview && !loading && !error && (
+            <UpgradeConfirmCard
+              preview={upgradePreview}
+              submitting={upgradeSubmitting}
+              onConfirm={handleConfirmUpgrade}
+              onCancel={() => router.push("/settings#billing")}
+            />
+          )}
+
+          {clientSecret && !loading && !error && !upgradePreview ? (
             <Elements
               stripe={getStripeClient()}
               options={{ clientSecret, appearance: STRIPE_APPEARANCE }}
@@ -208,8 +296,130 @@ function CheckoutInner() {
 
         {/* Order summary */}
         <div className="order-1 lg:order-2">
-          <OrderSummary type={type} plan={plan} />
+          <OrderSummary
+            type={type}
+            plan={upgradePreview ? upgradePreview.toPlan : plan}
+            upgrade={upgradePreview}
+          />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function formatCurrency(cents: number, currency: string | null): string {
+  const code = (currency || "usd").toUpperCase();
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+    }).format(cents / 100);
+  } catch {
+    return `$${(cents / 100).toFixed(2)}`;
+  }
+}
+
+function UpgradeConfirmCard({
+  preview,
+  submitting,
+  onConfirm,
+  onCancel,
+}: {
+  preview: UpgradePreview;
+  submitting: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const fromLabel = preview.fromPlan === "agency" ? "Agency" : "Pro";
+  const toLabel = preview.toPlan === "agency" ? "Agency" : "Pro";
+  const isUpgrade =
+    preview.fromPlan === "pro" && preview.toPlan === "agency";
+  const hasCharge = preview.prorationAmountCents > 0;
+  const amountLabel = formatCurrency(
+    preview.prorationAmountCents,
+    preview.prorationCurrency
+  );
+
+  return (
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <Sparkles className="w-4 h-4 text-[var(--color-accent)]" />
+        <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight">
+          {isUpgrade ? "Confirm upgrade" : "Confirm plan change"}
+        </h2>
+      </div>
+      <p className="text-xs text-[var(--color-text-secondary)] mb-6">
+        You&apos;re already subscribed — we just need to swap the plan on
+        your existing subscription. No new payment details needed.
+      </p>
+
+      <div className="flex items-center gap-3 mb-6 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+        <div className="flex-1 text-center">
+          <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-dim)] mb-1">
+            Current
+          </p>
+          <p className="font-[family-name:var(--font-display)] text-base font-semibold">
+            {fromLabel}
+          </p>
+        </div>
+        <ArrowRight className="w-4 h-4 text-[var(--color-text-dim)] shrink-0" />
+        <div className="flex-1 text-center">
+          <p className="text-[10px] uppercase tracking-wider text-[var(--color-accent)] mb-1">
+            New
+          </p>
+          <p className="font-[family-name:var(--font-display)] text-base font-semibold text-[var(--color-accent)]">
+            {toLabel}
+          </p>
+        </div>
+      </div>
+
+      <div className="mb-6 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+        <div className="flex items-baseline justify-between mb-2">
+          <span className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium">
+            {hasCharge ? "Charged today" : preview.isCredit ? "Credit applied" : "Due today"}
+          </span>
+          <span className="font-[family-name:var(--font-mono)] text-2xl font-bold">
+            {amountLabel}
+          </span>
+        </div>
+        <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
+          {hasCharge
+            ? `Prorated difference between ${fromLabel} and ${toLabel} for the remainder of your current billing cycle. Charged to your saved payment method right now. Your next invoice will be the full ${toLabel} rate on your normal billing date.`
+            : preview.isCredit
+              ? `Downgrading leaves a balance credit on your account. It applies automatically to your next ${toLabel} invoice — no charge today.`
+              : `Nothing is due today. Your next invoice will be at the ${toLabel} rate.`}
+        </p>
+      </div>
+
+      <div className="flex gap-3">
+        <button
+          onClick={onCancel}
+          disabled={submitting}
+          className="flex-1 inline-flex items-center justify-center gap-2 border border-[var(--color-border)] text-sm font-medium px-5 py-3 rounded-lg hover:border-[var(--color-border-hover)] disabled:opacity-50 transition-all"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={submitting}
+          className="flex-1 inline-flex items-center justify-center gap-2 bg-[var(--color-accent)] text-white text-sm font-semibold px-5 py-3 rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Updating&hellip;
+            </>
+          ) : (
+            <>
+              <ArrowUpRight className="w-4 h-4" />
+              {hasCharge
+                ? `Pay ${amountLabel} & upgrade`
+                : isUpgrade
+                  ? `Upgrade to ${toLabel}`
+                  : `Switch to ${toLabel}`}
+            </>
+          )}
+        </button>
       </div>
     </div>
   );

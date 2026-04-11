@@ -5,9 +5,18 @@ import { Check } from "lucide-react";
 export type Plan = "pro" | "agency";
 export type CheckoutType = "subscription" | "overage";
 
+export interface UpgradeSummaryInfo {
+  fromPlan: Plan;
+  toPlan: Plan;
+  prorationAmountCents: number;
+  prorationCurrency: string | null;
+  isCredit: boolean;
+}
+
 interface OrderSummaryProps {
   type: CheckoutType;
   plan: Plan | null;
+  upgrade?: UpgradeSummaryInfo | null;
 }
 
 const PLAN_DETAILS: Record<Plan, {
@@ -55,18 +64,35 @@ const OVERAGE_DETAILS = {
   ],
 };
 
-function formatPrice(cents: number): string {
+function formatPriceWhole(cents: number): string {
   return `$${(cents / 100).toFixed(0)}`;
 }
 
-export function OrderSummary({ type, plan }: OrderSummaryProps) {
+function formatPriceExact(cents: number, currency: string | null): string {
+  const code = (currency || "usd").toUpperCase();
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+    }).format(cents / 100);
+  } catch {
+    return `$${(cents / 100).toFixed(2)}`;
+  }
+}
+
+export function OrderSummary({ type, plan, upgrade }: OrderSummaryProps) {
+  // Plan-change flow: the target plan's feature list stays useful, but
+  // the totals section needs to reflect the proration — not the full
+  // new-subscription price.
   const details =
     type === "subscription" && plan ? PLAN_DETAILS[plan] : OVERAGE_DETAILS;
+
+  const isUpgradeFlow = Boolean(upgrade);
 
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] p-6 sticky top-24">
       <p className="text-xs uppercase tracking-wider text-[var(--color-text-dim)] font-medium mb-3">
-        Order summary
+        {isUpgradeFlow ? "New plan" : "Order summary"}
       </p>
 
       <h2 className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight mb-1">
@@ -74,7 +100,7 @@ export function OrderSummary({ type, plan }: OrderSummaryProps) {
       </h2>
       <div className="flex items-baseline gap-1 mb-6">
         <span className="font-[family-name:var(--font-mono)] text-3xl font-bold">
-          {formatPrice(details.priceCents)}
+          {formatPriceWhole(details.priceCents)}
         </span>
         <span className="text-sm text-[var(--color-text-dim)]">{details.period}</span>
       </div>
@@ -90,22 +116,56 @@ export function OrderSummary({ type, plan }: OrderSummaryProps) {
         ))}
       </div>
 
-      <div className="border-t border-[var(--color-border)] pt-4 space-y-2">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-[var(--color-text-secondary)]">Subtotal</span>
-          <span className="font-[family-name:var(--font-mono)]">
-            {formatPrice(details.priceCents)}
-          </span>
+      {isUpgradeFlow && upgrade ? (
+        <div className="border-t border-[var(--color-border)] pt-4 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-[var(--color-text-secondary)]">
+              New monthly rate
+            </span>
+            <span className="font-[family-name:var(--font-mono)]">
+              {formatPriceWhole(details.priceCents)}/mo
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-[var(--color-text-secondary)]">
+              Prorated adjustment
+            </span>
+            <span className="font-[family-name:var(--font-mono)]">
+              {formatPriceExact(upgrade.prorationAmountCents, upgrade.prorationCurrency)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-base font-semibold pt-2 border-t border-[var(--color-border)]">
+            <span>
+              {upgrade.isCredit ? "Credit applied" : "Total today"}
+            </span>
+            <span className="font-[family-name:var(--font-mono)]">
+              {formatPriceExact(upgrade.prorationAmountCents, upgrade.prorationCurrency)}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center justify-between text-base font-semibold pt-2 border-t border-[var(--color-border)]">
-          <span>Total today</span>
-          <span className="font-[family-name:var(--font-mono)]">
-            {formatPrice(details.priceCents)}
-          </span>
+      ) : (
+        <div className="border-t border-[var(--color-border)] pt-4 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-[var(--color-text-secondary)]">Subtotal</span>
+            <span className="font-[family-name:var(--font-mono)]">
+              {formatPriceWhole(details.priceCents)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-base font-semibold pt-2 border-t border-[var(--color-border)]">
+            <span>Total today</span>
+            <span className="font-[family-name:var(--font-mono)]">
+              {formatPriceWhole(details.priceCents)}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
-      {type === "subscription" ? (
+      {isUpgradeFlow ? (
+        <p className="text-[11px] text-[var(--color-text-dim)] mt-4 leading-snug">
+          Plan change bills immediately for the prorated difference. Your
+          next invoice is the full new rate on your normal billing date.
+        </p>
+      ) : type === "subscription" ? (
         <p className="text-[11px] text-[var(--color-text-dim)] mt-4 leading-snug">
           Recurring billing. Cancel anytime from Settings → Billing. Quotas reset on a rolling 30-day cycle.
         </p>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
-import { getStripe, PLAN_PRICE_IDS } from "@/lib/stripe";
+import { getStripe, planFromSubscription, PLAN_PRICE_IDS } from "@/lib/stripe";
 
 /**
  * POST /api/billing/subscribe
@@ -49,6 +49,7 @@ async function handleSubscribe(request: Request) {
 
   const body = await request.json();
   const plan = body.plan as "pro" | "agency" | undefined;
+  const confirmUpgrade = body.confirmUpgrade === true;
 
   if (plan !== "pro" && plan !== "agency") {
     return NextResponse.json(
@@ -92,23 +93,162 @@ async function handleSubscribe(request: Request) {
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  const origin =
-    process.env.NEXT_PUBLIC_SITE_URL || request.headers.get("origin") || "";
-
-  // Existing subscriber → portal flow for plan changes (Stripe handles
-  // proration, payment method reuse, etc. natively).
+  // Existing subscriber: verify the sub is actually live before we
+  // trust the stored ID. Terminal states (canceled / incomplete_expired)
+  // → clear the stale id and fall through to creating a fresh sub.
   if (profile.stripe_subscription_id) {
-    if (!profile.stripe_customer_id) {
-      return NextResponse.json(
-        { error: "Subscription exists but no customer ID — contact support" },
-        { status: 500 }
+    let existingSub: Stripe.Subscription | null = null;
+    try {
+      existingSub = await stripe.subscriptions.retrieve(
+        profile.stripe_subscription_id
+      );
+    } catch (err) {
+      // Sub was deleted from Stripe entirely — clear the stale id.
+      console.warn(
+        `[Subscribe] Stale stripe_subscription_id ${profile.stripe_subscription_id} — clearing`,
+        err
       );
     }
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: profile.stripe_customer_id,
-      return_url: `${origin}/settings?subscribe=plan-updated`,
-    });
-    return NextResponse.json({ portalUrl: portalSession.url });
+
+    const isLive =
+      existingSub &&
+      (existingSub.status === "active" ||
+        existingSub.status === "trialing" ||
+        existingSub.status === "past_due");
+
+    if (isLive && existingSub) {
+      if (!profile.stripe_customer_id) {
+        return NextResponse.json(
+          { error: "Subscription exists but no customer ID — contact support" },
+          { status: 500 }
+        );
+      }
+
+      const currentPriceId = existingSub.items.data[0]?.price.id;
+      const newPriceId = PLAN_PRICE_IDS[plan];
+      const currentItemId = existingSub.items.data[0]?.id;
+      const currentPlan = planFromSubscription(existingSub);
+
+      // Same plan → nothing to do. The only reason someone would land
+      // here is by navigating directly — the UI doesn't link to the
+      // checkout for the plan you already have. Redirect them to
+      // billing settings instead of silently re-checking out.
+      if (currentPriceId === newPriceId) {
+        return NextResponse.json(
+          { error: "You're already on this plan" },
+          { status: 400 }
+        );
+      }
+
+      // Different plan → in-place upgrade or downgrade. Stripe updates
+      // the existing subscription item with the new price and creates
+      // proration line items for the next invoice. No new Payment
+      // Element needed — the customer already has a card on file.
+      //
+      // Two-step handshake:
+      //  1. First POST (no confirmUpgrade flag) returns an "upgrade"
+      //     preview so the client can render a confirmation card.
+      //  2. Second POST (with confirmUpgrade: true) actually runs
+      //     stripe.subscriptions.update and returns { upgraded: true }.
+      if (!currentItemId || !newPriceId) {
+        return NextResponse.json(
+          { error: "Subscription price not configured" },
+          { status: 500 }
+        );
+      }
+
+      if (!confirmUpgrade) {
+        // Ask Stripe to compute the proration for this plan change.
+        // Using always_invoice here too so the preview matches what
+        // we'll actually charge below — otherwise the preview amount
+        // and the real invoice could drift.
+        //
+        // amount_due on the preview is the net charge (upgrade) or
+        // zero for downgrades (credit gets held for the next invoice,
+        // never a negative charge).
+        const prorationDate = Math.floor(Date.now() / 1000);
+        let prorationAmountCents = 0;
+        let prorationCurrency: string | null = null;
+        let isCredit = false;
+
+        try {
+          const preview = await stripe.invoices.createPreview({
+            customer: profile.stripe_customer_id,
+            subscription: existingSub.id,
+            subscription_details: {
+              items: [{ id: currentItemId, price: newPriceId }],
+              proration_behavior: "always_invoice",
+              proration_date: prorationDate,
+            },
+          });
+          prorationAmountCents = preview.amount_due;
+          prorationCurrency = preview.currency;
+          // Sum the proration line items — if the net credit is
+          // larger than the period charge, amount_due is 0 but the
+          // user still gets a balance credit that applies to the
+          // next real invoice. Detect that so the UI can say so.
+          //
+          // In the 2026-* API, `proration` moved from the line item
+          // root into `line.parent.{invoice_item_details|
+          // subscription_item_details}.proration`.
+          const prorationLineTotal = preview.lines.data
+            .filter((l) => {
+              const p = l.parent;
+              if (!p) return false;
+              return Boolean(
+                p.invoice_item_details?.proration ||
+                  p.subscription_item_details?.proration
+              );
+            })
+            .reduce((sum, l) => sum + l.amount, 0);
+          isCredit = prorationLineTotal < 0;
+        } catch (err) {
+          console.warn("[Subscribe] Failed to compute proration preview:", err);
+          Sentry.captureException(err, {
+            tags: { route: "api/billing/subscribe", context: "proration_preview" },
+          });
+        }
+
+        return NextResponse.json({
+          upgrade: {
+            fromPlan: currentPlan,
+            toPlan: plan,
+            subscriptionId: existingSub.id,
+            prorationAmountCents,
+            prorationCurrency,
+            isCredit,
+          },
+        });
+      }
+
+      // Execute the plan change. proration_behavior=always_invoice
+      // creates an invoice for the proration RIGHT NOW and attempts
+      // to pay it with the customer's default payment method. For
+      // upgrades this bills the difference immediately (matches the
+      // preview we showed). For downgrades it creates a zero-or-credit
+      // invoice that settles against their next renewal.
+      await stripe.subscriptions.update(existingSub.id, {
+        items: [{ id: currentItemId, price: newPriceId }],
+        proration_behavior: "always_invoice",
+        metadata: {
+          supabase_uid: user.id,
+          plan,
+        },
+      });
+
+      // Don't flip profile.plan here — the webhook
+      // (customer.subscription.updated) is the source of truth and
+      // will fire within a second or two. Writing it here too would
+      // duplicate logic and create a race if the webhook arrives with
+      // a slightly different state.
+      return NextResponse.json({ upgraded: true, plan });
+    }
+
+    // Not live — drop the stale id and proceed to create a new sub below.
+    await supabase
+      .from("profiles")
+      .update({ stripe_subscription_id: null } as never)
+      .eq("id", user.id);
   }
 
   // Get or create the Stripe customer
@@ -123,6 +263,56 @@ async function handleSubscribe(request: Request) {
       .from("profiles")
       .update({ stripe_customer_id: customerId } as never)
       .eq("id", user.id);
+  }
+
+  // Idempotency: if this customer already has an incomplete subscription
+  // for the SAME plan, reuse it instead of creating another one. This
+  // guards against React Strict Mode (which double-fires useEffect and
+  // used to create two subs per checkout visit), concurrent tabs, and
+  // the user refreshing /checkout. Stripe auto-expires incomplete subs
+  // after 23h so orphans still clean themselves up, but while they're
+  // alive we must never create duplicates — they can get auto-charged
+  // via Smart Retries on the Dashboard and double-bill the user.
+  const { data: existingIncomplete } = await stripe.subscriptions.list({
+    customer: customerId,
+    status: "incomplete",
+    limit: 10,
+    expand: ["data.latest_invoice.confirmation_secret"],
+  });
+
+  const reusable = existingIncomplete.find(
+    (s) => s.items.data[0]?.price.id === priceId
+  );
+
+  if (reusable) {
+    const inv = reusable.latest_invoice as Stripe.Invoice | null;
+    const reuseSecret = inv?.confirmation_secret?.client_secret;
+    if (reuseSecret) {
+      console.log(
+        `[Subscribe] Reusing incomplete subscription ${reusable.id} for user ${user.id}`
+      );
+      return NextResponse.json({
+        clientSecret: reuseSecret,
+        subscriptionId: reusable.id,
+        plan,
+        reused: true,
+      });
+    }
+  }
+
+  // Cancel any incomplete subs for DIFFERENT plans this customer has
+  // lying around (e.g. they opened /checkout?plan=pro, then changed
+  // their mind and came to /checkout?plan=agency). Leaving them alive
+  // risks Smart Retries charging the wrong plan later.
+  for (const stale of existingIncomplete) {
+    if (stale.items.data[0]?.price.id !== priceId) {
+      try {
+        await stripe.subscriptions.cancel(stale.id);
+        console.log(`[Subscribe] Canceled stale incomplete sub ${stale.id}`);
+      } catch (err) {
+        console.warn(`[Subscribe] Failed to cancel stale sub ${stale.id}:`, err);
+      }
+    }
   }
 
   // Create the subscription in "incomplete" state — payment hasn't

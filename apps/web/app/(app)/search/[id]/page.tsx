@@ -12,6 +12,7 @@ import {
   Loader2,
   AlertCircle,
   ArrowRight,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -272,6 +273,39 @@ export default function SearchRunningPage({
           />
         ))}
       </div>
+
+      {/* "Take your time" banner — only visible while the job is still running.
+          Lighthouse audits on ~30 sites can push a full search to 15-20 min,
+          so we want to make it clear the user doesn't need to stare at this
+          page the whole time. */}
+      {status !== "completed" && status !== "failed" && (
+        <div className="mb-10 p-5 rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/5">
+          <div className="flex items-start gap-3">
+            <Mail className="w-4 h-4 text-[var(--color-accent)] mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                You can close this tab
+              </p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1 leading-relaxed">
+                Full searches with Lighthouse audits can take 10&ndash;20 minutes.
+                We&apos;ll email you a link to your results as soon as it&apos;s done.
+                Check your spam or promotions folder if you don&apos;t see it.
+              </p>
+              <p className="text-[11px] text-[var(--color-text-dim)] mt-2">
+                Prefer to stay on the page? That works too &mdash; progress updates live.
+                You can toggle email notifications off in{" "}
+                <Link
+                  href="/settings#notifications"
+                  className="text-[var(--color-accent)] hover:underline"
+                >
+                  Settings
+                </Link>
+                .
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {status === "completed" && (
         <div className="text-center p-8 rounded-xl border border-emerald-500/20 bg-emerald-50">

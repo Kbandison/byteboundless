@@ -155,6 +155,10 @@ function SignupForm() {
                 {email}
               </span>
             </p>
+            <p className="mt-3 text-xs text-[var(--color-text-dim)] leading-relaxed">
+              Don&apos;t see it? Check your spam or promotions folder. The link
+              expires in 1 hour.
+            </p>
             <button
               type="button"
               onClick={() => {

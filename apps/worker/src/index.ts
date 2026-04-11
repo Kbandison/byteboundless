@@ -290,6 +290,7 @@ async function processJob(job: Record<string, unknown>) {
       if (profile && profile.notify_on_complete) {
         const hotCount = results.filter((b) => (b.leadScore ?? 0) >= 80).length;
         await sendJobCompleteEmail({
+          userId: job.user_id as string,
           email: profile.email,
           query: job.query as string,
           location: job.location as string,

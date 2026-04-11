@@ -252,12 +252,28 @@ async function handleSubscriptionUpdated(
     subscription.status !== "trialing" &&
     subscription.status !== "past_due" // give past_due users a grace window
   ) {
+    // Reset quota counters when dropping to free — otherwise a user
+    // who had 30 searches used on Pro would land on the Free plan
+    // at 30/3 and be unable to search for the remainder of their
+    // 30-day rolling window. Giving them a fresh free-tier allowance
+    // starting from the downgrade date is the friendlier default.
+    const now = new Date().toISOString();
+    const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const { error } = await supabase
       .from("profiles")
-      .update({ plan: "free", stripe_subscription_id: null } as never)
+      .update({
+        plan: "free",
+        stripe_subscription_id: null,
+        searches_used: 0,
+        searches_reset_at: thirtyDays,
+        pitches_used: 0,
+        pitches_reset_at: thirtyDays,
+      } as never)
       .eq("id", userId);
     if (error) throw new Error(`Failed to revert plan: ${error.message}`);
-    console.log(`[Webhook] Subscription ${subscription.id} now ${subscription.status} — reverted to free`);
+    console.log(
+      `[Webhook] Subscription ${subscription.id} now ${subscription.status} — reverted to free (quotas reset at ${now})`
+    );
     return;
   }
 
@@ -342,9 +358,19 @@ async function handleSubscriptionDeleted(
   // actually changes email, but reading pre-update is cleaner.
   const email = await lookupUserEmail(supabase, userId);
 
+  // Same quota reset as handleSubscriptionUpdated's revert path —
+  // see that function for the rationale.
+  const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   const { error } = await supabase
     .from("profiles")
-    .update({ plan: "free", stripe_subscription_id: null } as never)
+    .update({
+      plan: "free",
+      stripe_subscription_id: null,
+      searches_used: 0,
+      searches_reset_at: thirtyDays,
+      pitches_used: 0,
+      pitches_reset_at: thirtyDays,
+    } as never)
     .eq("id", userId);
   if (error) throw new Error(`Failed to revert plan: ${error.message}`);
 

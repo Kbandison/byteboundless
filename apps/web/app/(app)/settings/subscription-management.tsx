@@ -116,6 +116,80 @@ export function SubscriptionManagement() {
     })();
   }, [refetchStatus]);
 
+  // 3DS return handler. When a payment method update triggers 3DS,
+  // Stripe redirects the browser to /settings?setup_intent=si_xxx
+  // &setup_intent_client_secret=...&redirect_status=succeeded. The
+  // inline Payment Element submit handler isn't in the DOM anymore
+  // by the time we land here, so we have to finish the flow from
+  // scratch: retrieve the SetupIntent client-side, pull the PM id
+  // off it, and call /api/billing/payment-method/confirm ourselves.
+  //
+  // Without this effect the new card ends up attached to the customer
+  // but never set as default — the user would think the update
+  // worked but their next bill would still charge the old card.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const clientSecret = params.get("setup_intent_client_secret");
+    const redirectStatus = params.get("redirect_status");
+    if (!clientSecret || redirectStatus !== "succeeded") return;
+
+    let cancelled = false;
+    (async () => {
+      const stripe = await getStripeClient();
+      if (!stripe || cancelled) return;
+      const { setupIntent, error } = await stripe.retrieveSetupIntent(clientSecret);
+      if (error || !setupIntent || cancelled) {
+        if (error) toast.error(error.message ?? "Couldn't verify card update");
+        return;
+      }
+      const pmId =
+        typeof setupIntent.payment_method === "string"
+          ? setupIntent.payment_method
+          : setupIntent.payment_method?.id;
+      if (!pmId) {
+        toast.error("Card update incomplete — no payment method");
+        return;
+      }
+      try {
+        const res = await fetch("/api/billing/payment-method/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paymentMethodId: pmId }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          toast.error(data.error || "Failed to save payment method");
+          return;
+        }
+        toast.success("Payment method updated");
+        if (data.paymentMethod) {
+          setStatus((prev) =>
+            prev ? { ...prev, paymentMethod: data.paymentMethod } : prev
+          );
+        }
+        await refetchStatus();
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err instanceof Error ? err.message : "Request failed");
+        }
+      } finally {
+        // Strip the Stripe query params from the URL so a page
+        // refresh doesn't re-run this effect and double-confirm.
+        const url = new URL(window.location.href);
+        url.searchParams.delete("setup_intent");
+        url.searchParams.delete("setup_intent_client_secret");
+        url.searchParams.delete("redirect_status");
+        url.searchParams.delete("billing");
+        window.history.replaceState({}, "", url.toString());
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refetchStatus]);
+
   async function handleStartUpdatePm() {
     setPmLoading(true);
     try {
@@ -323,12 +397,18 @@ export function SubscriptionManagement() {
               <p className="text-sm font-medium text-red-900 dark:text-red-200 mb-1">
                 Cancel your subscription?
               </p>
-              <p className="text-xs text-red-800 dark:text-red-300 mb-4 leading-relaxed">
+              <p className="text-xs text-red-800 dark:text-red-300 mb-3 leading-relaxed">
                 You&apos;ll keep full access until{" "}
                 <strong>{formatDate(status.currentPeriodEnd)}</strong>. After
-                that, your account reverts to the free plan. Everything you
-                saved stays put — you just can&apos;t run new searches on the
-                paid tier. You can reactivate any time before the end date.
+                that, your account reverts to the free plan.
+              </p>
+              <p className="text-xs text-red-800 dark:text-red-300 mb-4 leading-relaxed">
+                <strong>Your saved data stays put but becomes inaccessible</strong>{" "}
+                on the free plan — saved lists, outcome history, and pipeline
+                tracking are locked until you re-subscribe. Nothing is
+                deleted; everything is waiting for you the moment you
+                reactivate. You can reactivate any time before the end date
+                with a single click.
               </p>
               <div className="flex gap-2">
                 <button

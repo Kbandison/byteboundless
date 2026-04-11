@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Users, Activity, Search, Server } from "lucide-react";
 import { requireAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
+import { StaggerContainer, StaggerItem } from "@/components/ui/motion-stagger";
 
 export default async function AdminDashboard() {
   await requireAdmin();
@@ -43,56 +44,61 @@ export default async function AdminDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Link
-              key={stat.label}
-              href={stat.href}
-              className="bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl p-6 hover:border-[var(--color-border-hover)] transition-all duration-300 group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-secondary)] flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-[var(--color-text-secondary)]" />
+            <StaggerItem key={stat.label}>
+              <Link
+                href={stat.href}
+                className="block bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl p-6 hover:border-[var(--color-border-hover)] transition-all duration-300 group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-secondary)] flex items-center justify-center">
+                    <Icon className="w-5 h-5 text-[var(--color-text-secondary)]" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-[var(--color-text-secondary)]">{stat.label}</p>
+                    <p className="text-2xl font-bold font-[family-name:var(--font-mono)]">{stat.value}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-[var(--color-text-secondary)]">{stat.label}</p>
-                  <p className="text-2xl font-bold font-[family-name:var(--font-mono)]">{stat.value}</p>
-                </div>
-              </div>
-            </Link>
+              </Link>
+            </StaggerItem>
           );
         })}
-      </div>
+      </StaggerContainer>
 
       {/* Quick links */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link
-          href="/admin/users"
-          className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/30 transition-all duration-300"
-        >
-          <Users className="w-6 h-6 text-[var(--color-accent)] mb-3" />
-          <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold mb-1">
-            Manage Users
-          </h3>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            View all users, change plans, grant admin access.
-          </p>
-        </Link>
-        <Link
-          href="/admin/jobs"
-          className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/30 transition-all duration-300"
-        >
-          <Activity className="w-6 h-6 text-[var(--color-accent)] mb-3" />
-          <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold mb-1">
-            Monitor Jobs
-          </h3>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Track all scrape jobs, see failures, monitor the worker.
-          </p>
-        </Link>
-      </div>
+      <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <StaggerItem>
+          <Link
+            href="/admin/users"
+            className="block p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/30 transition-all duration-300"
+          >
+            <Users className="w-6 h-6 text-[var(--color-accent)] mb-3" />
+            <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold mb-1">
+              Manage Users
+            </h3>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              View all users, change plans, grant admin access.
+            </p>
+          </Link>
+        </StaggerItem>
+        <StaggerItem>
+          <Link
+            href="/admin/jobs"
+            className="block p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] hover:border-[var(--color-accent)]/30 transition-all duration-300"
+          >
+            <Activity className="w-6 h-6 text-[var(--color-accent)] mb-3" />
+            <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold mb-1">
+              Monitor Jobs
+            </h3>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Track all scrape jobs, see failures, monitor the worker.
+            </p>
+          </Link>
+        </StaggerItem>
+      </StaggerContainer>
     </div>
   );
 }

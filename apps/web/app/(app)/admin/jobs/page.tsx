@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { StaggerContainer, StaggerItem } from "@/components/ui/motion-stagger";
 
 export default async function AdminJobsPage() {
   await requireAdmin();
@@ -56,9 +57,10 @@ export default async function AdminJobsPage() {
           <span>Created</span>
         </div>
 
-        <div className="divide-y divide-[var(--color-border)]/50">
+        <StaggerContainer tight className="divide-y divide-[var(--color-border)]/50">
           {jobs.map((job) => (
-            <div
+            <StaggerItem
+              row
               key={job.id as string}
               className="grid grid-cols-1 md:grid-cols-[1fr_1fr_90px_90px_100px_100px] gap-3 px-5 py-4 items-center"
             >
@@ -101,7 +103,7 @@ export default async function AdminJobsPage() {
                   {job.error as string}
                 </p>
               )}
-            </div>
+            </StaggerItem>
           ))}
 
           {jobs.length === 0 && (
@@ -109,7 +111,7 @@ export default async function AdminJobsPage() {
               No jobs yet.
             </div>
           )}
-        </div>
+        </StaggerContainer>
       </div>
     </div>
   );

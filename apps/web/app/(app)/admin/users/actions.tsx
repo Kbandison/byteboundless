@@ -1,25 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Sparkles, X } from "lucide-react";
+import { Loader2, Sparkles, Trash2, X } from "lucide-react";
 
 interface UserActionsProps {
   userId: string;
+  currentEmail: string;
   currentPlan: string;
   currentRole: string;
   planExpiresAt: string | null;
+  isRootAdmin: boolean;
+  isSelf: boolean;
 }
 
 export function UserActions({
   userId,
+  currentEmail,
   currentPlan,
   currentRole,
   planExpiresAt,
+  isRootAdmin,
+  isSelf,
 }: UserActionsProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-reset the delete confirmation after 5s so a stray click
+  // doesn't leave the row armed indefinitely.
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    confirmTimerRef.current = setTimeout(() => {
+      setConfirmingDelete(false);
+    }, 5000);
+    return () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    };
+  }, [confirmingDelete]);
 
   const onBeta = planExpiresAt !== null && new Date(planExpiresAt) > new Date();
 
@@ -38,6 +58,28 @@ export function UserActions({
     }
     setLoading(null);
     router.refresh();
+  }
+
+  async function handleDelete() {
+    setLoading("delete");
+    try {
+      const res = await fetch(
+        `/api/admin/users?userId=${encodeURIComponent(userId)}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Delete failed");
+      } else {
+        toast.success(`Deleted ${currentEmail}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setLoading(null);
+      setConfirmingDelete(false);
+      router.refresh();
+    }
   }
 
   return (
@@ -79,25 +121,63 @@ export function UserActions({
         </button>
       )}
 
-      <button
-        disabled={loading !== null}
-        onClick={() =>
-          updateUser({ role: currentRole === "admin" ? "user" : "admin" }, "role")
-        }
-        className={`text-[10px] px-2 py-1.5 rounded-md border font-medium transition-colors disabled:opacity-50 ${
-          currentRole === "admin"
-            ? "border-red-200 text-red-600 hover:bg-red-50"
-            : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
-        }`}
-      >
-        {loading === "role" ? (
-          <Loader2 className="w-3 h-3 animate-spin inline" />
-        ) : currentRole === "admin" ? (
-          "Remove Admin"
-        ) : (
-          "Make Admin"
-        )}
-      </button>
+      {/* Role toggle — hidden for the root admin so their role can't
+          be changed from the UI. Kept for every other admin so the
+          root can demote helpers they previously promoted. */}
+      {!isRootAdmin && (
+        <button
+          disabled={loading !== null}
+          onClick={() =>
+            updateUser({ role: currentRole === "admin" ? "user" : "admin" }, "role")
+          }
+          className={`text-[10px] px-2 py-1.5 rounded-md border font-medium transition-colors disabled:opacity-50 ${
+            currentRole === "admin"
+              ? "border-red-200 text-red-600 hover:bg-red-50"
+              : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+          }`}
+        >
+          {loading === "role" ? (
+            <Loader2 className="w-3 h-3 animate-spin inline" />
+          ) : currentRole === "admin" ? (
+            "Remove Admin"
+          ) : (
+            "Make Admin"
+          )}
+        </button>
+      )}
+
+      {/* Delete — hidden for the root admin AND for the caller's own
+          row. Two-click confirm: first click arms, second click
+          within 5s fires. The 5s timeout resets via useEffect. */}
+      {!isRootAdmin && !isSelf && (
+        <button
+          disabled={loading !== null}
+          onClick={() => {
+            if (confirmingDelete) {
+              handleDelete();
+            } else {
+              setConfirmingDelete(true);
+            }
+          }}
+          className={`inline-flex items-center gap-1 text-[10px] px-2 py-1.5 rounded-md border font-medium transition-colors disabled:opacity-50 ${
+            confirmingDelete
+              ? "border-red-500 bg-red-500 text-white hover:bg-red-600"
+              : "border-red-200 text-red-600 hover:bg-red-50"
+          }`}
+          title={
+            confirmingDelete
+              ? "Click again to permanently delete"
+              : `Delete ${currentEmail}`
+          }
+        >
+          {loading === "delete" ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Trash2 className="w-3 h-3" />
+          )}
+          {confirmingDelete ? "Click to confirm" : "Delete"}
+        </button>
+      )}
     </div>
   );
 }

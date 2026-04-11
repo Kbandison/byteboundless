@@ -1,7 +1,8 @@
-import { requireAdmin } from "@/lib/admin";
+import { requireAdmin, isRootAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@byteboundless/supabase";
 import { UserActions } from "./actions";
+import { StaggerContainer, StaggerItem } from "@/components/ui/motion-stagger";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"] & {
   plan_expires_at?: string | null;
@@ -15,7 +16,7 @@ function daysRemaining(expiresAt: string | null | undefined): number | null {
 }
 
 export default async function AdminUsersPage() {
-  await requireAdmin();
+  const callerProfile = await requireAdmin();
   const supabase = await createClient();
 
   const { data } = await supabase
@@ -48,11 +49,12 @@ export default async function AdminUsersPage() {
         </div>
 
         {/* Rows */}
-        <div className="divide-y divide-[var(--color-border)]/50">
+        <StaggerContainer tight className="divide-y divide-[var(--color-border)]/50">
           {users.map((user) => {
             const beta = daysRemaining(user.plan_expires_at);
             return (
-            <div
+            <StaggerItem
+              row
               key={user.id}
               className="grid grid-cols-1 md:grid-cols-[1fr_90px_90px_100px_80px_260px] gap-3 px-5 py-4 items-center"
             >
@@ -103,14 +105,17 @@ export default async function AdminUsersPage() {
 
               <UserActions
                 userId={user.id}
+                currentEmail={user.email}
                 currentPlan={user.plan}
                 currentRole={user.role}
                 planExpiresAt={user.plan_expires_at ?? null}
+                isRootAdmin={isRootAdmin(user.email)}
+                isSelf={user.id === callerProfile.id}
               />
-            </div>
+            </StaggerItem>
             );
           })}
-        </div>
+        </StaggerContainer>
       </div>
     </div>
   );

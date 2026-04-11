@@ -122,38 +122,38 @@ const SignalMark = () => {
 };
 
 // ══════════════════════════════════════════════════════════════════
-// SECTION 2 — Single B variants (distinct visual treatments)
+// SECTION 2 — Single B (pure letterforms, no container)
 // ══════════════════════════════════════════════════════════════════
 
-// 1a — B in a circle. Different container shape — softer silhouette
-// than the rounded square, more friendly/organic.
-const SingleBCircle = () => (
+// 1a — Solid B. Inter at heavy weight, blue, no container.
+// The simplest possible mark — confidence comes from weight + color.
+const SingleBSolid = () => (
   <svg
     viewBox="0 0 120 120"
     width="120"
     height="120"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="B in circle"
+    aria-label="solid B mark"
   >
-    <circle cx="60" cy="60" r="58" fill={ACCENT} />
     <text
       x="60"
-      y="60"
-      fill={WHITE}
+      y="64"
+      fill={ACCENT}
       fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="76"
-      fontWeight="800"
+      fontSize="118"
+      fontWeight="900"
       textAnchor="middle"
       dominantBaseline="central"
-      letterSpacing="-0.04em"
+      letterSpacing="-0.05em"
     >
       B
     </text>
   </svg>
 );
 
-// 1b — Outlined B. Stroke-only B with no fill, on the blue square.
-// Creates negative space and feels more open.
+// 1b — Outlined B. Stroke-only letterform, no fill. The B is drawn
+// by its outline, leaving the interior open as negative space.
+// SVG text supports stroke + no fill via fill="none".
 const SingleBOutline = () => (
   <svg
     viewBox="0 0 120 120"
@@ -162,22 +162,15 @@ const SingleBOutline = () => (
     xmlns="http://www.w3.org/2000/svg"
     aria-label="outlined B mark"
   >
-    <rect
-      x="3"
-      y="3"
-      width="114"
-      height="114"
-      rx="24"
-      fill="none"
-      stroke={ACCENT}
-      strokeWidth="6"
-    />
     <text
       x="60"
-      y="60"
-      fill={ACCENT}
+      y="64"
+      fill="none"
+      stroke={ACCENT}
+      strokeWidth="4"
+      strokeLinejoin="round"
       fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="76"
+      fontSize="110"
       fontWeight="800"
       textAnchor="middle"
       dominantBaseline="central"
@@ -188,68 +181,57 @@ const SingleBOutline = () => (
   </svg>
 );
 
-// 1c — B² (B-squared). Mathematical/semantic mark — two Bs in the
-// name compressed into one symbol. The superscript 2 reads instantly.
-const SingleBSquared = () => (
+// 1c — B with signal accent. A clean B with a small accent dot
+// positioned to its upper-right, echoing the signal-in-noise mark.
+// Ties the favicon visually to the secondary accent mark.
+const SingleBAccent = () => (
   <svg
-    viewBox="0 0 120 120"
-    width="120"
+    viewBox="0 0 140 120"
+    width="140"
     height="120"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="B squared mark"
+    aria-label="B with signal accent dot"
   >
-    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
     <text
-      x="46"
-      y="62"
-      fill={WHITE}
+      x="56"
+      y="64"
+      fill={ACCENT}
       fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="76"
-      fontWeight="800"
+      fontSize="108"
+      fontWeight="900"
       textAnchor="middle"
       dominantBaseline="central"
-      letterSpacing="-0.04em"
+      letterSpacing="-0.05em"
     >
       B
     </text>
-    {/* Superscript 2 — smaller, raised, slightly offset right */}
-    <text
-      x="86"
-      y="36"
-      fill={WHITE}
-      fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="32"
-      fontWeight="700"
-      textAnchor="middle"
-      dominantBaseline="central"
-    >
-      2
-    </text>
+    {/* Accent dot — positioned to the upper-right, the same vibe
+        as the highlighted dot in the signal-in-noise mark */}
+    <circle cx="120" cy="22" r="9" fill={ACCENT} />
   </svg>
 );
 
 // ══════════════════════════════════════════════════════════════════
-// SECTION 3 — Double B variants (distinct visual treatments)
+// SECTION 3 — Double B (pure letterforms, no container)
 // ══════════════════════════════════════════════════════════════════
 
-// 2a — bb tight. Two lowercase b's with aggressive negative kerning
-// so they nearly fuse into one shape.
+// 2a — bb tight kern. Two lowercase b's with aggressive negative
+// letter-spacing so they nearly fuse into one shape. No container.
 const DoubleBTight = () => (
   <svg
-    viewBox="0 0 120 120"
-    width="120"
+    viewBox="0 0 200 120"
+    width="200"
     height="120"
     xmlns="http://www.w3.org/2000/svg"
     aria-label="bb tight kern mark"
   >
-    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
     <text
-      x="60"
-      y="65"
-      fill={WHITE}
+      x="100"
+      y="64"
+      fill={ACCENT}
       fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="78"
-      fontWeight="800"
+      fontSize="118"
+      fontWeight="900"
       textAnchor="middle"
       dominantBaseline="central"
       letterSpacing="-0.18em"
@@ -259,67 +241,67 @@ const DoubleBTight = () => (
   </svg>
 );
 
-// 2b — BB depth shadow. Two uppercase B's stacked with an offset
-// so the back B reads as a soft shadow behind the front B.
-const DoubleBDepth = () => (
+// 2b — B mirrored. Uppercase B with a horizontally-mirrored B
+// next to it, forming a symmetric monogram. The flip is done with
+// an SVG transform on a group containing the second text node.
+const DoubleBMirror = () => (
   <svg
-    viewBox="0 0 120 120"
-    width="120"
+    viewBox="0 0 200 120"
+    width="200"
     height="120"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="BB depth shadow mark"
+    aria-label="B mirrored monogram"
   >
-    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
-    {/* Back B — dimmer, offset down-right to act as the shadow */}
+    {/* Right-facing B */}
     <text
-      x="68"
-      y="68"
-      fill={WHITE}
-      fillOpacity="0.35"
+      x="60"
+      y="64"
+      fill={ACCENT}
       fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="76"
-      fontWeight="800"
+      fontSize="108"
+      fontWeight="900"
       textAnchor="middle"
       dominantBaseline="central"
-      letterSpacing="-0.04em"
+      letterSpacing="-0.05em"
     >
       B
     </text>
-    {/* Front B — full white, normal position */}
-    <text
-      x="52"
-      y="52"
-      fill={WHITE}
-      fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="76"
-      fontWeight="800"
-      textAnchor="middle"
-      dominantBaseline="central"
-      letterSpacing="-0.04em"
-    >
-      B
-    </text>
+    {/* Mirrored B — flip horizontally around its own center */}
+    <g transform="translate(280 0) scale(-1 1)">
+      <text
+        x="140"
+        y="64"
+        fill={ACCENT}
+        fontFamily="Inter, system-ui, -apple-system, sans-serif"
+        fontSize="108"
+        fontWeight="900"
+        textAnchor="middle"
+        dominantBaseline="central"
+        letterSpacing="-0.05em"
+      >
+        B
+      </text>
+    </g>
   </svg>
 );
 
-// 2c — bb diagonal. Two lowercase b's staggered diagonally — one
-// in the upper-left, one in the lower-right. Creates motion / step.
-const DoubleBDiagonal = () => (
+// 2c — bb stacked vertically. Two lowercase b's stacked vertically.
+// Compact vertical monogram, naturally fits a square favicon area.
+const DoubleBStacked = () => (
   <svg
-    viewBox="0 0 120 120"
-    width="120"
-    height="120"
+    viewBox="0 0 100 180"
+    width="100"
+    height="180"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="bb diagonal stagger mark"
+    aria-label="bb stacked vertical mark"
   >
-    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
     <text
-      x="42"
-      y="44"
-      fill={WHITE}
+      x="50"
+      y="50"
+      fill={ACCENT}
       fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="56"
-      fontWeight="800"
+      fontSize="86"
+      fontWeight="900"
       textAnchor="middle"
       dominantBaseline="central"
       letterSpacing="-0.04em"
@@ -327,12 +309,12 @@ const DoubleBDiagonal = () => (
       b
     </text>
     <text
-      x="78"
-      y="78"
-      fill={WHITE}
+      x="50"
+      y="130"
+      fill={ACCENT}
       fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="56"
-      fontWeight="800"
+      fontSize="86"
+      fontWeight="900"
       textAnchor="middle"
       dominantBaseline="central"
       letterSpacing="-0.04em"
@@ -386,113 +368,113 @@ const sections: Section[] = [
   },
   {
     eyebrow: "EXPLORATION · SINGLE B",
-    title: "Favicon mark — single letter",
+    title: "Pure letterform — single B",
     description:
-      "Three single-B treatments with distinct visual approaches. Each pulls away from the default 'letter on a rounded square' template in a different direction.",
+      "Three single-B marks with no container, no background. Just the letter (and in one case a small accent) sitting in space. Like Linear, Notion, or Stripe — the mark IS the letterform.",
     concepts: [
       {
         number: "1a",
-        title: "B in circle",
+        title: "Solid B",
         description:
-          "Different container shape — circle instead of rounded square. Softer silhouette, more organic against the rest of the UI.",
+          "Inter at black weight (900), in accent blue. The simplest possible mark — confidence comes from the weight and color, not from a frame.",
         pros: [
-          "Stands apart from generic SaaS rounded-square logos",
-          "Friendly, organic feel",
-          "Circle clips cleanly at any avatar size",
+          "Maximum weight and presence",
+          "Reads instantly at any size",
+          "Closest to the Vercel/Linear school of letterform marks",
         ],
         cons: [
-          "Less coherent with the existing rounded-square UI in the app sidebar",
-          "Circle shape is less common for favicons",
+          "Generic until customized — many brands use a heavy single letter",
+          "Lives or dies on the typeface choice",
         ],
-        svg: <SingleBCircle />,
+        svg: <SingleBSolid />,
       },
       {
         number: "1b",
         title: "Outlined B",
         description:
-          "Stroke-only B inside an outlined square — no fill. Inverts the relationship between mark and ground, leaving negative space for the letterform.",
+          "Stroke-only letterform with no fill — the B is drawn by its outline, leaving the interior open as negative space. Light and confident.",
         pros: [
           "Distinctive — most logos are filled, not outlined",
-          "Lets the background show through (works on any color)",
-          "Light, modern, restrained",
+          "Lets the background color show through",
+          "Modern, restrained, design-conscious feel",
         ],
         cons: [
-          "Less visual weight than a filled mark",
-          "Outline strokes can blur at 16px favicon size",
+          "Stroke can blur at 16px favicon",
+          "Less visual weight than a solid mark",
         ],
         svg: <SingleBOutline />,
       },
       {
         number: "1c",
-        title: "B² (B-squared)",
+        title: "B with signal accent",
         description:
-          "Mathematical 'B squared' — semantic for the two Bs in ByteBoundless compressed into one symbol. The superscript reads instantly as 'twice'.",
+          "A clean B with a small accent dot positioned to its upper-right. The dot intentionally echoes the highlighted dot in the signal-in-noise mark, tying the favicon visually to the secondary accent.",
         pros: [
-          "Semantically tied to the brand name in a clever way",
-          "Distinctive — no other SaaS uses this construction",
-          "Works as a piece of marketing copy too ('B²')",
+          "Visually links the favicon to the signal-in-noise accent mark",
+          "The accent dot adds a custom touch to a generic letterform",
+          "Works at small sizes — the dot is bold enough to read",
         ],
         cons: [
-          "May feel too clever / cute",
-          "Superscript 2 gets small and risks vanishing at favicon size",
+          "Wider than a single letter, slightly less compact",
+          "Accent dot meaning is implicit, not obvious",
         ],
-        svg: <SingleBSquared />,
+        svg: <SingleBAccent />,
       },
     ],
   },
   {
     eyebrow: "EXPLORATION · DOUBLE B",
-    title: "Favicon mark — two letters",
+    title: "Pure letterform — double B",
     description:
-      "Three double-B treatments. Each tries a different way to combine two letterforms into one cohesive mark — aggressive kerning, depth/shadow, or staggered placement.",
+      "Three double-B marks with no container. Each leans into a different way to combine the letterforms — aggressive kerning, mirroring, or vertical stacking.",
     concepts: [
       {
         number: "2a",
         title: "bb tight kern",
         description:
-          "Two lowercase b's with aggressive negative letter-spacing so they nearly fuse into a single visual shape. The bowls overlap creating a custom ligature feel.",
+          "Two lowercase b's at black weight with aggressive negative letter-spacing so they nearly fuse into one shape. No background — the letterforms ARE the mark.",
         pros: [
-          "Reads as a single, intentional mark — not just two letters",
+          "Reads as a single intentional mark, not two letters glued together",
           "Most type-driven of the double-B options",
-          "Compact enough for favicon use",
+          "Compact even without a container",
         ],
         cons: [
-          "Aggressive kerning can look like a typo if not executed well",
-          "Letterform overlap may smudge at very small sizes",
+          "Aggressive kerning can read as a typo if not refined",
+          "Letterform overlap may smudge at small sizes",
         ],
         svg: <DoubleBTight />,
       },
       {
         number: "2b",
-        title: "BB depth shadow",
+        title: "B mirrored",
         description:
-          "Two uppercase B's stacked with an offset so the back one reads as a soft shadow behind the front. Creates dimensionality without literal 3D effects.",
+          "Uppercase B with a horizontally-mirrored B next to it, forming a symmetric monogram. The two letterforms create a butterfly/diamond silhouette.",
         pros: [
-          "Most dynamic of the double-B options",
-          "Implies depth and layering — modern feel",
-          "Both Bs are individually legible",
+          "Truly distinctive — no other brand uses this construction",
+          "Symmetric shape feels balanced and intentional",
+          "Reads as a custom monogram, not typed text",
         ],
         cons: [
-          "Drop-shadow style can feel dated if overdone",
-          "Two letters compete for attention at small sizes",
+          "Mirrored B doesn't read as the letter B anymore — abstract",
+          "Wide aspect ratio — needs cropping for square contexts",
         ],
-        svg: <DoubleBDepth />,
+        svg: <DoubleBMirror />,
       },
       {
         number: "2c",
-        title: "bb diagonal",
+        title: "bb stacked",
         description:
-          "Two lowercase b's staggered diagonally — one in the upper-left, one in the lower-right. The arrangement suggests motion and progression.",
+          "Two lowercase b's stacked vertically. Compact, naturally fits square favicon contexts, and the vertical arrangement reads as a custom monogram.",
         pros: [
-          "Forward-motion energy fits the lead-finding pitch",
-          "Most distinctive layout — no other brand does this",
-          "Diagonal balance feels modern",
+          "Naturally fits square favicon space",
+          "Vertical stack is unusual for letter marks — distinctive",
+          "Both b's stay individually legible",
         ],
         cons: [
-          "Less compact than other layouts",
-          "Diagonal staggering can feel decorative rather than essential",
+          "Vertical orientation is awkward for header/sidebar lockups",
+          "Two letters competing in a small space",
         ],
-        svg: <DoubleBDiagonal />,
+        svg: <DoubleBStacked />,
       },
     ],
   },

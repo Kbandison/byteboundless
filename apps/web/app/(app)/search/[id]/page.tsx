@@ -129,6 +129,11 @@ export default function SearchRunningPage({
   const [resultCount, setResultCount] = useState(0);
   const [startedAt, setStartedAt] = useState<Date | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  // True when the user has another search of theirs already running.
+  // Drives the fairness-aware copy on the pending state — instead of
+  // a generic "waiting for worker" we explain that their other job is
+  // running first and theirs will start as soon as that one finishes.
+  const [waitingOnOwnJob, setWaitingOnOwnJob] = useState(false);
 
   // Use a ref for startedAt inside the fetch so we don't need to list it
   // as a dep on useCallback (which would cause the callback to change on
@@ -166,6 +171,28 @@ export default function SearchRunningPage({
         .select("id", { count: "exact", head: true })
         .eq("job_id", id);
       setResultCount(count ?? 0);
+    }
+
+    // Fairness check: if the current job is pending, look for ANY
+    // other job from the same user that's currently running. If one
+    // exists, the worker's per-user fairness rule (claim_next_job
+    // RPC) is intentionally holding this job back until the user's
+    // running job finishes — surface that to the UI so the pending
+    // copy can explain WHY instead of just saying "waiting".
+    if (job.status === "pending") {
+      const userId = job.user_id as string | undefined;
+      if (userId) {
+        const { data: running } = await supabase
+          .from("scrape_jobs")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("status", "running")
+          .neq("id", id)
+          .limit(1);
+        setWaitingOnOwnJob((running?.length ?? 0) > 0);
+      }
+    } else {
+      setWaitingOnOwnJob(false);
     }
   }, [id]);
 
@@ -350,9 +377,23 @@ export default function SearchRunningPage({
       {status === "pending" && (
         <div className="text-center p-8 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
           <Loader2 className="w-8 h-8 text-[var(--color-text-dim)] mx-auto mb-4 animate-spin" />
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Waiting for worker to pick up this job...
-          </p>
+          {waitingOnOwnJob ? (
+            <>
+              <p className="text-sm text-[var(--color-text-primary)] font-medium mb-2">
+                Your other search is running first
+              </p>
+              <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed max-w-md mx-auto">
+                We process one search per user at a time so everyone in the
+                queue gets a fair turn. This will start as soon as your
+                running search finishes — you can close this tab and come
+                back later, or wait here for live progress.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Waiting for worker to pick up this job...
+            </p>
+          )}
         </div>
       )}
     </div>

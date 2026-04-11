@@ -25,6 +25,26 @@ const RESET_STALE_AFTER_MS = 10 * 60 * 1000; // 10 minutes
 const FAIL_STALE_AFTER_MS = 15 * 60 * 1000; // 15 minutes
 const STALE_CLEANUP_INTERVAL_MS = 60 * 1000; // check every minute
 
+// Concurrency configuration. WORKER_CONCURRENCY controls how many jobs
+// run simultaneously in this worker process. WORKER_MAX_CONCURRENCY is
+// a safety cap so a misconfigured env var can't accidentally spawn 50
+// browser contexts and OOM the container.
+//
+// Both are env-tunable so the operator can dial them from the Railway
+// dashboard without redeploying code.
+const WORKER_MAX_CONCURRENCY = Math.max(
+  1,
+  parseInt(process.env.WORKER_MAX_CONCURRENCY || "10", 10)
+);
+const REQUESTED_CONCURRENCY = Math.max(
+  1,
+  parseInt(process.env.WORKER_CONCURRENCY || "5", 10)
+);
+const WORKER_CONCURRENCY = Math.min(
+  REQUESTED_CONCURRENCY,
+  WORKER_MAX_CONCURRENCY
+);
+
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars");
   process.exit(1);
@@ -34,31 +54,25 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: false },
 });
 
-async function claimJob() {
-  const { data: jobs } = await supabase
-    .from("scrape_jobs")
-    .select("*")
-    .eq("status", "pending")
-    .order("created_at", { ascending: true })
-    .limit(1);
-
-  if (!jobs || jobs.length === 0) return null;
-
-  const job = jobs[0];
-  const { data: claimed, error } = await supabase
-    .from("scrape_jobs")
-    .update({
-      status: "running",
-      phase: "collecting",
-      heartbeat_at: new Date().toISOString(),
-    } as never)
-    .eq("id", job.id)
-    .eq("status", "pending")
-    .select("*")
-    .single();
-
-  if (error || !claimed) return null;
-  return claimed as Record<string, unknown>;
+// Atomic concurrent job claim via the claim_next_job() RPC. The
+// function uses Postgres FOR UPDATE SKIP LOCKED so multiple worker
+// loops can call it simultaneously without ever claiming the same
+// row, AND it applies per-user fairness so one user submitting many
+// searches at once doesn't hog all the worker slots.
+//
+// See supabase/018_claim_next_job.sql for the function definition.
+async function claimJob(): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabase.rpc("claim_next_job" as never);
+  if (error) {
+    console.error("[Worker] claim_next_job RPC error:", error);
+    Sentry.captureException(error, { tags: { context: "claim_next_job" } });
+    return null;
+  }
+  if (!data) return null;
+  // RPC returns SETOF scrape_jobs which arrives as an array.
+  const rows = data as Record<string, unknown>[];
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return rows[0];
 }
 
 // On worker startup: recover jobs left in 'running' from a previous
@@ -115,56 +129,70 @@ async function failStaleJobs() {
   }
 }
 
-// Throttled progress updater — avoids hammering Supabase with rapid updates
-let lastProgressUpdate = 0;
-let pendingProgress: { jobId: string; phase: string; current: number; total: number } | null = null;
-let progressTimer: ReturnType<typeof setTimeout> | null = null;
+// Per-job progress tracker. Previously this was a single set of module-
+// level globals (lastProgressUpdate, pendingProgress, progressTimer)
+// shared across all jobs — fine when only one job ran at a time, but
+// catastrophically broken with concurrency because two jobs would
+// stomp on each other's pending state.
+//
+// Now each call to processJob spins up its own tracker via this
+// factory, so every job has its own throttle window and pending
+// state. The state is closed over by the returned functions.
+function createProgressTracker(jobId: string) {
+  let pending: { phase: string; current: number; total: number } | null = null;
+  let lastUpdate = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
-async function flushProgress() {
-  if (!pendingProgress) return;
-  const { jobId, phase, current, total } = pendingProgress;
-  pendingProgress = null;
-  lastProgressUpdate = Date.now();
-  await supabase
-    .from("scrape_jobs")
-    .update({
-      phase,
-      progress_current: current,
-      progress_total: total,
-      heartbeat_at: new Date().toISOString(),
-    } as never)
-    .eq("id", jobId);
-}
-
-function updateProgress(jobId: string, phase: string, current: number, total: number) {
-  pendingProgress = { jobId, phase, current, total };
-
-  // Always flush phase changes immediately
-  const timeSinceLast = Date.now() - lastProgressUpdate;
-  if (timeSinceLast > 1500) {
-    flushProgress();
-  } else if (!progressTimer) {
-    progressTimer = setTimeout(() => {
-      progressTimer = null;
-      flushProgress();
-    }, 1500 - timeSinceLast);
+  async function flush() {
+    if (!pending) return;
+    const { phase, current, total } = pending;
+    pending = null;
+    lastUpdate = Date.now();
+    await supabase
+      .from("scrape_jobs")
+      .update({
+        phase,
+        progress_current: current,
+        progress_total: total,
+        heartbeat_at: new Date().toISOString(),
+      } as never)
+      .eq("id", jobId);
   }
-}
 
-// Force flush (for phase transitions)
-async function forceFlush(jobId: string, phase: string, current: number, total: number) {
-  pendingProgress = null;
-  if (progressTimer) { clearTimeout(progressTimer); progressTimer = null; }
-  lastProgressUpdate = Date.now();
-  await supabase
-    .from("scrape_jobs")
-    .update({
-      phase,
-      progress_current: current,
-      progress_total: total,
-      heartbeat_at: new Date().toISOString(),
-    } as never)
-    .eq("id", jobId);
+  function update(phase: string, current: number, total: number) {
+    pending = { phase, current, total };
+    const sinceLast = Date.now() - lastUpdate;
+    if (sinceLast > 1500) {
+      flush();
+    } else if (!timer) {
+      timer = setTimeout(() => {
+        timer = null;
+        flush();
+      }, 1500 - sinceLast);
+    }
+  }
+
+  // Force-flush is used at phase transitions where we want the UI to
+  // see the new phase immediately, not wait out the throttle window.
+  async function forceFlush(phase: string, current: number, total: number) {
+    pending = null;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    lastUpdate = Date.now();
+    await supabase
+      .from("scrape_jobs")
+      .update({
+        phase,
+        progress_current: current,
+        progress_total: total,
+        heartbeat_at: new Date().toISOString(),
+      } as never)
+      .eq("id", jobId);
+  }
+
+  return { update, forceFlush, flush };
 }
 
 async function writeBusinessBatch(jobId: string, businesses: RawBusiness[]): Promise<void> {
@@ -204,7 +232,6 @@ async function writeBusinessBatch(jobId: string, businesses: RawBusiness[]): Pro
 }
 
 async function completeJob(jobId: string) {
-  await flushProgress();
   await supabase
     .from("scrape_jobs")
     .update({
@@ -223,22 +250,30 @@ async function failJob(jobId: string, error: string) {
     .eq("id", jobId);
 }
 
-const progressCallback = (jobId: string) => async (phase: string, current: number, total: number) => {
-  if (phase === "enriching" && current === 0) {
-    console.log(`[Worker] Phase: enriching (${total} businesses)`);
-    await forceFlush(jobId, phase, current, total);
-  } else if (phase === "scoring" && current === 0) {
-    console.log(`[Worker] Phase: scoring (${total} businesses)`);
-    await forceFlush(jobId, phase, current, total);
-  } else if (phase === "collecting" || phase === "done") {
-    await forceFlush(jobId, phase, current, total);
-  } else {
-    updateProgress(jobId, phase, current, total);
-  }
-};
-
 async function processJob(job: Record<string, unknown>) {
   const jobId = job.id as string;
+  const tracker = createProgressTracker(jobId);
+
+  // Build the progress callback for THIS job. Closures capture the
+  // per-job tracker so concurrent jobs don't share progress state.
+  const progressCallback = async (
+    phase: string,
+    current: number,
+    total: number
+  ) => {
+    if (phase === "enriching" && current === 0) {
+      console.log(`[Worker] Job ${jobId} phase: enriching (${total} businesses)`);
+      await tracker.forceFlush(phase, current, total);
+    } else if (phase === "scoring" && current === 0) {
+      console.log(`[Worker] Job ${jobId} phase: scoring (${total} businesses)`);
+      await tracker.forceFlush(phase, current, total);
+    } else if (phase === "collecting" || phase === "done") {
+      await tracker.forceFlush(phase, current, total);
+    } else {
+      tracker.update(phase, current, total);
+    }
+  };
+
   const options = job.options as {
     radius?: string;
     strict?: boolean;
@@ -265,7 +300,7 @@ async function processJob(job: Record<string, unknown>) {
 
     if (isUrlMode) {
       // Reverse mode: skip Google Maps, go straight to enrichment
-      results = await runUrlEnrich(options.urls!, progressCallback(jobId), runLighthouse);
+      results = await runUrlEnrich(options.urls!, progressCallback, runLighthouse);
     } else {
       const radius = (options.radius || (options.strict ? "city" : "nearby")) as "city" | "nearby" | "region" | "statewide";
       results = await runScrape(
@@ -277,13 +312,16 @@ async function processJob(job: Record<string, unknown>) {
           enrich: options.enrich,
           runLighthouse,
         },
-        progressCallback(jobId)
+        progressCallback
       );
     }
 
     console.log(`[Worker] Writing ${results.length} businesses to DB`);
     await writeBusinessBatch(jobId, results);
 
+    // Flush any pending throttled progress before flipping to completed
+    // so the UI sees the final progress state, not a stale snapshot.
+    await tracker.flush();
     await completeJob(jobId);
     console.log(`[Worker] Job ${jobId} completed — ${results.length} results`);
 
@@ -335,14 +373,46 @@ async function processJob(job: Record<string, unknown>) {
   }
 }
 
-async function poll() {
-  console.log("[Worker] ByteBoundless worker started. Polling for jobs...");
+// Single worker loop. Each loop independently claims and processes
+// jobs in a tight cycle. Multiple loops run in parallel to give the
+// worker process its concurrency. claim_next_job's FOR UPDATE SKIP
+// LOCKED ensures two loops never claim the same row.
+async function workerLoop(workerIndex: number) {
+  while (true) {
+    try {
+      const job = await claimJob();
+      if (job) {
+        const jobId = job.id as string;
+        console.log(`[Worker-${workerIndex}] Claimed job ${jobId}`);
+        await processJob(job);
+      } else {
+        // Queue is empty (or every visible job is locked by another
+        // loop). Sleep before checking again.
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      }
+    } catch (err) {
+      console.error(`[Worker-${workerIndex}] Loop error:`, err);
+      Sentry.captureException(err, {
+        tags: { context: "worker_loop", worker_index: String(workerIndex) },
+      });
+      // Pause briefly on error before retrying so we don't tight-loop
+      // against a broken queue or DB connection.
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    }
+  }
+}
 
-  // Recover any orphaned 'running' jobs from a previous crashed instance
+async function start() {
+  console.log(
+    `[Worker] ByteBoundless worker started — concurrency=${WORKER_CONCURRENCY} (max=${WORKER_MAX_CONCURRENCY})`
+  );
+
+  // Recover any orphaned 'running' jobs from a previous crashed instance.
+  // Runs once at boot before the worker loops start claiming new work.
   await recoverOrphanedJobs();
 
-  // Periodic stale-job sweep runs independent of the main loop so it
-  // still fires even while processJob is busy on a long-running job.
+  // Periodic stale-job sweep runs independent of the worker loops so
+  // it still fires even when every loop is busy on a long-running job.
   setInterval(() => {
     failStaleJobs().catch((e) => {
       console.error("[Worker] Stale sweep error:", e);
@@ -350,18 +420,14 @@ async function poll() {
     });
   }, STALE_CLEANUP_INTERVAL_MS);
 
-  while (true) {
-    try {
-      const job = await claimJob();
-      if (job) {
-        await processJob(job);
-      }
-    } catch (err) {
-      console.error("[Worker] Poll error:", err);
-      Sentry.captureException(err, { tags: { context: "poll_loop" } });
-    }
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+  // Spawn N concurrent worker loops. They never resolve under normal
+  // operation — Promise.all just keeps the process alive and surfaces
+  // any unhandled error from a loop.
+  const loops: Promise<void>[] = [];
+  for (let i = 0; i < WORKER_CONCURRENCY; i++) {
+    loops.push(workerLoop(i));
   }
+  await Promise.all(loops);
 }
 
-poll();
+start();

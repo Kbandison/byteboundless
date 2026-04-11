@@ -42,13 +42,20 @@ export async function GET(request: Request) {
 }
 
 async function handleCron(request: Request) {
-  // Vercel Cron auth: if CRON_SECRET is set, require the header match.
-  // In dev we allow the endpoint to run without auth for manual testing.
-  if (CRON_SECRET) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${CRON_SECRET}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // Vercel Cron auth — fail CLOSED. If CRON_SECRET isn't set, the
+  // endpoint is locked; if the header doesn't match, 401. This is
+  // the opposite of the original "fail open when unset" logic, which
+  // would let anyone trigger email spam by hitting the URL directly
+  // in production if the env var was accidentally unset.
+  if (!CRON_SECRET) {
+    return NextResponse.json(
+      { error: "CRON_SECRET is not configured — cron endpoint is locked" },
+      { status: 503 }
+    );
+  }
+  const auth = request.headers.get("authorization");
+  if (auth !== `Bearer ${CRON_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {

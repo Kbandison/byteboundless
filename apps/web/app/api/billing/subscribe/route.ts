@@ -166,13 +166,16 @@ async function handleSubscribe(request: Request) {
         // amount_due on the preview is the net charge (upgrade) or
         // zero for downgrades (credit gets held for the next invoice,
         // never a negative charge).
+        //
+        // If this preview call fails we REFUSE to render the
+        // confirmation card — otherwise the user could hit Confirm
+        // on a $0 total and get surprise-billed for the real amount.
+        // The checkout page's error state catches the 500 and shows
+        // a clear "Couldn't start checkout" card with retry.
         const prorationDate = Math.floor(Date.now() / 1000);
-        let prorationAmountCents = 0;
-        let prorationCurrency: string | null = null;
-        let isCredit = false;
-
+        let preview: Stripe.Invoice;
         try {
-          const preview = await stripe.invoices.createPreview({
+          preview = await stripe.invoices.createPreview({
             customer: profile.stripe_customer_id,
             subscription: existingSub.id,
             subscription_details: {
@@ -181,33 +184,38 @@ async function handleSubscribe(request: Request) {
               proration_date: prorationDate,
             },
           });
-          prorationAmountCents = preview.amount_due;
-          prorationCurrency = preview.currency;
-          // Sum the proration line items — if the net credit is
-          // larger than the period charge, amount_due is 0 but the
-          // user still gets a balance credit that applies to the
-          // next real invoice. Detect that so the UI can say so.
-          //
-          // In the 2026-* API, `proration` moved from the line item
-          // root into `line.parent.{invoice_item_details|
-          // subscription_item_details}.proration`.
-          const prorationLineTotal = preview.lines.data
-            .filter((l) => {
-              const p = l.parent;
-              if (!p) return false;
-              return Boolean(
-                p.invoice_item_details?.proration ||
-                  p.subscription_item_details?.proration
-              );
-            })
-            .reduce((sum, l) => sum + l.amount, 0);
-          isCredit = prorationLineTotal < 0;
         } catch (err) {
-          console.warn("[Subscribe] Failed to compute proration preview:", err);
+          console.error("[Subscribe] Proration preview failed:", err);
           Sentry.captureException(err, {
             tags: { route: "api/billing/subscribe", context: "proration_preview" },
           });
+          return NextResponse.json(
+            { error: "Couldn't compute plan change cost. Please try again." },
+            { status: 502 }
+          );
         }
+
+        const prorationAmountCents = preview.amount_due;
+        const prorationCurrency = preview.currency;
+        // Sum the proration line items — if the net credit is larger
+        // than the period charge, amount_due is 0 but the user still
+        // gets a balance credit that applies to the next real invoice.
+        // Detect that so the UI can say so.
+        //
+        // In the 2026-* API, `proration` moved from the line item
+        // root into `line.parent.{invoice_item_details|
+        // subscription_item_details}.proration`.
+        const prorationLineTotal = preview.lines.data
+          .filter((l) => {
+            const p = l.parent;
+            if (!p) return false;
+            return Boolean(
+              p.invoice_item_details?.proration ||
+                p.subscription_item_details?.proration
+            );
+          })
+          .reduce((sum, l) => sum + l.amount, 0);
+        const isCredit = prorationLineTotal < 0;
 
         return NextResponse.json({
           upgrade: {

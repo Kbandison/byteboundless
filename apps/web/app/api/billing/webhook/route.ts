@@ -217,7 +217,8 @@ async function handlePaymentIntentSucceeded(
  */
 async function handleSubscriptionUpdated(
   supabase: ReturnType<typeof getAdminClient>,
-  subscription: Stripe.Subscription
+  subscription: Stripe.Subscription,
+  previousAttributes: Partial<Stripe.Subscription> | null
 ) {
   const userId =
     subscription.metadata?.supabase_uid ||
@@ -296,10 +297,22 @@ async function handleSubscriptionUpdated(
     }
   }
 
-  // Past-due warning: fires when Stripe flips the subscription into
-  // past_due after a failed charge. Only send once per transition
-  // (when the previous status wasn't already past_due).
-  if (subscription.status === "past_due" && prev?.email) {
+  // Past-due warning: fires ONLY on the actual active→past_due
+  // transition, not on subsequent updates while already past_due.
+  // Stripe's smart-retry cycle can emit multiple customer.subscription
+  // .updated events while the sub sits in past_due, and without this
+  // guard the user would get one past-due email per retry attempt.
+  //
+  // The guard uses event.data.previous_attributes.status — Stripe
+  // sets this to the OLD value of any field that changed in the
+  // update. If status is in previous_attributes AND the old value
+  // wasn't past_due, this event is the transition TO past_due.
+  const prevStatus = previousAttributes?.status;
+  const isPastDueTransition =
+    subscription.status === "past_due" &&
+    prevStatus !== undefined &&
+    prevStatus !== "past_due";
+  if (isPastDueTransition && prev?.email) {
     try {
       await sendSubscriptionPastDueEmail({ userId, email: prev.email });
     } catch (err) {
@@ -438,9 +451,23 @@ export async function POST(request: Request) {
         break;
 
       case "customer.subscription.created":
-      case "customer.subscription.updated":
-        await handleSubscriptionUpdated(supabase, event.data.object as Stripe.Subscription);
+      case "customer.subscription.updated": {
+        // previous_attributes is only present on updates, not creates.
+        // We pass it so handleSubscriptionUpdated can detect real
+        // status transitions instead of re-firing emails on every
+        // update event that happens to have a past_due status.
+        const prevAttrs =
+          event.type === "customer.subscription.updated"
+            ? ((event.data as { previous_attributes?: Partial<Stripe.Subscription> })
+                .previous_attributes ?? null)
+            : null;
+        await handleSubscriptionUpdated(
+          supabase,
+          event.data.object as Stripe.Subscription,
+          prevAttrs
+        );
         break;
+      }
 
       case "customer.subscription.deleted":
         await handleSubscriptionDeleted(supabase, event.data.object as Stripe.Subscription);

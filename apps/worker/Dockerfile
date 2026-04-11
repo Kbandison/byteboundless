@@ -1,7 +1,9 @@
-FROM mcr.microsoft.com/playwright:v1.52.0-noble
+FROM mcr.microsoft.com/playwright:v1.55.1-noble
 
-# Cache bust - forces fresh build
-ARG CACHEBUST=2
+# Cache bust - forces fresh build. Bump this whenever the base
+# image version above changes — Railway sometimes caches the
+# previous image layer and ships a worker with old browser binaries.
+ARG CACHEBUST=3
 
 WORKDIR /app
 

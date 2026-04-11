@@ -18,7 +18,7 @@ interface Concept {
   svg: React.ReactNode;
   /** Wider card for horizontal wordmarks (default is square). */
   wide?: boolean;
-  /** Optional highlight (recommended, featured, etc). */
+  /** Optional highlight (selected, recommended, etc). */
   highlight?: string;
 }
 
@@ -35,17 +35,17 @@ const WHITE = "#FFFFFF";
 const BLACK = "#111111";
 
 // ══════════════════════════════════════════════════════════════════
-// SECTION 1 — Concept 2 refinements (bracket wordmark)
+// SECTION 1 — Selected directions (the keepers)
 // ══════════════════════════════════════════════════════════════════
 
-// Original [byte]boundless — kept for side-by-side comparison
-const Concept2Original = () => (
+// Original [byte]boundless wordmark
+const Wordmark = () => (
   <svg
     viewBox="0 0 360 120"
     width="360"
     height="120"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="Original [byte]boundless wordmark"
+    aria-label="[byte]boundless wordmark"
   >
     <text
       x="180"
@@ -75,265 +75,13 @@ const Concept2Original = () => (
   </svg>
 );
 
-// Refinement 2a — angle brackets <byte>boundless
-const Concept2Angle = () => (
-  <svg
-    viewBox="0 0 360 120"
-    width="360"
-    height="120"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-label="Angle bracket wordmark"
-  >
-    <text
-      x="180"
-      y="60"
-      fill={ACCENT}
-      fontFamily="Geist Mono, ui-monospace, Menlo, monospace"
-      fontSize="38"
-      fontWeight="700"
-      textAnchor="end"
-      dominantBaseline="central"
-    >
-      &lt;byte&gt;
-    </text>
-    <text
-      x="184"
-      y="60"
-      fill={BLACK}
-      fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="38"
-      fontWeight="800"
-      textAnchor="start"
-      dominantBaseline="central"
-      letterSpacing="-0.03em"
-    >
-      boundless
-    </text>
-  </svg>
-);
-
-// Refinement 2b — stacked [byte] / boundless, works in square contexts
-const Concept2Stacked = () => (
-  <svg
-    viewBox="0 0 280 160"
-    width="280"
-    height="160"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-label="Stacked bracket wordmark"
-  >
-    <text
-      x="140"
-      y="55"
-      fill={ACCENT}
-      fontFamily="Geist Mono, ui-monospace, Menlo, monospace"
-      fontSize="36"
-      fontWeight="700"
-      textAnchor="middle"
-      dominantBaseline="central"
-    >
-      [byte]
-    </text>
-    <text
-      x="140"
-      y="108"
-      fill={BLACK}
-      fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="44"
-      fontWeight="800"
-      textAnchor="middle"
-      dominantBaseline="central"
-      letterSpacing="-0.04em"
-    >
-      boundless
-    </text>
-  </svg>
-);
-
-// Refinement 2c — companion [b] mark for favicon/standalone use
-const Concept2Companion = () => (
-  <svg
-    viewBox="0 0 120 120"
-    width="120"
-    height="120"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-label="Companion [b] favicon mark"
-  >
-    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
-    <text
-      x="60"
-      y="62"
-      fill={WHITE}
-      fontFamily="Geist Mono, ui-monospace, Menlo, monospace"
-      fontSize="56"
-      fontWeight="700"
-      textAnchor="middle"
-      dominantBaseline="central"
-    >
-      [b]
-    </text>
-  </svg>
-);
-
-// ══════════════════════════════════════════════════════════════════
-// SECTION 2 — Concept 4 refinements (scanner / signal mark)
-// ══════════════════════════════════════════════════════════════════
-
-// Original 3-ring radar — kept for side-by-side comparison
-const Concept4Original = () => (
-  <svg
-    viewBox="0 0 120 120"
-    width="120"
-    height="120"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-label="Original 3-ring radar"
-  >
-    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
-    <circle
-      cx="60"
-      cy="60"
-      r="40"
-      fill="none"
-      stroke={WHITE}
-      strokeWidth="3"
-      opacity="0.25"
-    />
-    <circle
-      cx="60"
-      cy="60"
-      r="28"
-      fill="none"
-      stroke={WHITE}
-      strokeWidth="3"
-      opacity="0.5"
-    />
-    <circle
-      cx="60"
-      cy="60"
-      r="16"
-      fill="none"
-      stroke={WHITE}
-      strokeWidth="3"
-    />
-    <circle cx="60" cy="60" r="6" fill={WHITE} />
-    <line
-      x1="60"
-      y1="60"
-      x2="92"
-      y2="28"
-      stroke={WHITE}
-      strokeWidth="4"
-      strokeLinecap="round"
-    />
-    <circle cx="92" cy="28" r="5" fill={WHITE} />
-  </svg>
-);
-
-// Refinement 4a — Focused pulse. Single outward ring + solid center dot.
-// Cleaner than 3 rings, reads as "hit/target/ping" not security dashboard.
-const Concept4Pulse = () => (
-  <svg
-    viewBox="0 0 120 120"
-    width="120"
-    height="120"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-label="Focused pulse"
-  >
-    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
-    {/* Outer pulse ring, subtle */}
-    <circle
-      cx="60"
-      cy="60"
-      r="40"
-      fill="none"
-      stroke={WHITE}
-      strokeWidth="3"
-      opacity="0.25"
-    />
-    {/* Main ring */}
-    <circle
-      cx="60"
-      cy="60"
-      r="24"
-      fill="none"
-      stroke={WHITE}
-      strokeWidth="3.5"
-    />
-    {/* Solid core */}
-    <circle cx="60" cy="60" r="10" fill={WHITE} />
-  </svg>
-);
-
-// Refinement 4b — Crosshair reticle. Targeting energy, clearer "finding"
-// metaphor than concentric rings.
-const Concept4Crosshair = () => (
-  <svg
-    viewBox="0 0 120 120"
-    width="120"
-    height="120"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-label="Crosshair reticle"
-  >
-    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
-    {/* Outer ring */}
-    <circle
-      cx="60"
-      cy="60"
-      r="32"
-      fill="none"
-      stroke={WHITE}
-      strokeWidth="3"
-    />
-    {/* Crosshair arms (4 short lines extending through center) */}
-    <line
-      x1="60"
-      y1="18"
-      x2="60"
-      y2="34"
-      stroke={WHITE}
-      strokeWidth="3"
-      strokeLinecap="round"
-    />
-    <line
-      x1="60"
-      y1="86"
-      x2="60"
-      y2="102"
-      stroke={WHITE}
-      strokeWidth="3"
-      strokeLinecap="round"
-    />
-    <line
-      x1="18"
-      y1="60"
-      x2="34"
-      y2="60"
-      stroke={WHITE}
-      strokeWidth="3"
-      strokeLinecap="round"
-    />
-    <line
-      x1="86"
-      y1="60"
-      x2="102"
-      y2="60"
-      stroke={WHITE}
-      strokeWidth="3"
-      strokeLinecap="round"
-    />
-    {/* Center dot */}
-    <circle cx="60" cy="60" r="5" fill={WHITE} />
-  </svg>
-);
-
-// Refinement 4c — Signal in noise. A 5x5 grid of dots where one is
-// highlighted bright white. Literalizes the product's core pitch:
-// finding the ONE lead worth pursuing out of many.
-const Concept4Signal = () => {
+// Signal in noise — secondary accent mark
+const SignalMark = () => {
   const cols = 5;
   const rows = 5;
   const spacing = 16;
-  const startX = (120 - (cols - 1) * spacing) / 2; // 28
-  const startY = (120 - (rows - 1) * spacing) / 2; // 28
+  const startX = (120 - (cols - 1) * spacing) / 2;
+  const startY = (120 - (rows - 1) * spacing) / 2;
   const highlightCol = 3;
   const highlightRow = 2;
   return (
@@ -342,7 +90,7 @@ const Concept4Signal = () => {
       width="120"
       height="120"
       xmlns="http://www.w3.org/2000/svg"
-      aria-label="Signal in noise grid"
+      aria-label="Signal in noise mark"
     >
       <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
       {Array.from({ length: rows }).map((_, row) =>
@@ -360,7 +108,6 @@ const Concept4Signal = () => {
           );
         })
       )}
-      {/* Subtle ring around the highlighted dot to emphasize it */}
       <circle
         cx={startX + highlightCol * spacing}
         cy={startY + highlightRow * spacing}
@@ -375,82 +122,22 @@ const Concept4Signal = () => {
 };
 
 // ══════════════════════════════════════════════════════════════════
-// SECTION 3 — Original six (reference, for comparison)
+// SECTION 2 — Single B variants (distinct visual treatments)
 // ══════════════════════════════════════════════════════════════════
 
-const Concept1Mark = () => (
+// 1a — B in a circle. Different container shape — softer silhouette
+// than the rounded square, more friendly/organic.
+const SingleBCircle = () => (
   <svg
     viewBox="0 0 120 120"
     width="120"
     height="120"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="Concept 1 — refined B mark"
+    aria-label="B in circle"
   >
-    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
+    <circle cx="60" cy="60" r="58" fill={ACCENT} />
     <text
       x="60"
-      y="60"
-      fill={WHITE}
-      fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="80"
-      fontWeight="800"
-      textAnchor="middle"
-      dominantBaseline="central"
-      letterSpacing="-0.04em"
-    >
-      B
-    </text>
-  </svg>
-);
-
-const LockupMark = () => (
-  <svg
-    viewBox="0 0 360 120"
-    width="360"
-    height="120"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-label="Recommended lockup — mark + wordmark"
-  >
-    <rect x="0" y="14" width="92" height="92" rx="20" fill={ACCENT} />
-    <text
-      x="46"
-      y="60"
-      fill={WHITE}
-      fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="60"
-      fontWeight="800"
-      textAnchor="middle"
-      dominantBaseline="central"
-      letterSpacing="-0.04em"
-    >
-      B
-    </text>
-    <text
-      x="110"
-      y="60"
-      fill={BLACK}
-      fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="36"
-      fontWeight="800"
-      dominantBaseline="central"
-      letterSpacing="-0.03em"
-    >
-      ByteBoundless
-    </text>
-  </svg>
-);
-
-const Concept3Mark = () => (
-  <svg
-    viewBox="0 0 160 120"
-    width="160"
-    height="120"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-label="Concept 3 — B escaping boundary"
-  >
-    <rect x="0" y="6" width="112" height="108" rx="24" fill={ACCENT} />
-    <text
-      x="58"
       y="60"
       fill={WHITE}
       fontFamily="Inter, system-ui, -apple-system, sans-serif"
@@ -462,84 +149,35 @@ const Concept3Mark = () => (
     >
       B
     </text>
-    <path
-      d="M 118 60 L 154 60"
-      stroke={ACCENT}
-      strokeWidth="8"
-      strokeLinecap="round"
-    />
-    <path
-      d="M 144 50 L 158 60 L 144 70"
-      stroke={ACCENT}
-      strokeWidth="8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      fill="none"
-    />
   </svg>
 );
 
-const Concept5Mark = () => {
-  const pattern = [
-    [1, 1, 1, 0],
-    [1, 0, 0, 1],
-    [1, 0, 0, 1],
-    [1, 1, 1, 0],
-    [1, 0, 0, 1],
-    [1, 0, 0, 1],
-    [1, 1, 1, 0],
-  ];
-  const pixelSize = 10;
-  const gap = 2;
-  const stride = pixelSize + gap;
-  const width = 4 * stride - gap;
-  const height = 7 * stride - gap;
-  const offsetX = (120 - width) / 2;
-  const offsetY = (120 - height) / 2;
-  return (
-    <svg
-      viewBox="0 0 120 120"
-      width="120"
-      height="120"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="Concept 5 — pixel-stack B"
-    >
-      <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
-      <g fill={WHITE}>
-        {pattern.map((row, rowIdx) =>
-          row.map((cell, colIdx) =>
-            cell ? (
-              <rect
-                key={`${rowIdx}-${colIdx}`}
-                x={offsetX + colIdx * stride}
-                y={offsetY + rowIdx * stride}
-                width={pixelSize}
-                height={pixelSize}
-                rx="1"
-              />
-            ) : null
-          )
-        )}
-      </g>
-    </svg>
-  );
-};
-
-const Concept6Mark = () => (
+// 1b — Outlined B. Stroke-only B with no fill, on the blue square.
+// Creates negative space and feels more open.
+const SingleBOutline = () => (
   <svg
     viewBox="0 0 120 120"
     width="120"
     height="120"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="Concept 6 — B chevron"
+    aria-label="outlined B mark"
   >
-    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
+    <rect
+      x="3"
+      y="3"
+      width="114"
+      height="114"
+      rx="24"
+      fill="none"
+      stroke={ACCENT}
+      strokeWidth="6"
+    />
     <text
-      x="42"
+      x="60"
       y="60"
-      fill={WHITE}
+      fill={ACCENT}
       fontFamily="Inter, system-ui, -apple-system, sans-serif"
-      fontSize="70"
+      fontSize="76"
       fontWeight="800"
       textAnchor="middle"
       dominantBaseline="central"
@@ -547,14 +185,160 @@ const Concept6Mark = () => (
     >
       B
     </text>
-    <path
-      d="M 70 40 L 94 60 L 70 80"
-      stroke={WHITE}
-      strokeWidth="8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      fill="none"
-    />
+  </svg>
+);
+
+// 1c — B² (B-squared). Mathematical/semantic mark — two Bs in the
+// name compressed into one symbol. The superscript 2 reads instantly.
+const SingleBSquared = () => (
+  <svg
+    viewBox="0 0 120 120"
+    width="120"
+    height="120"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-label="B squared mark"
+  >
+    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
+    <text
+      x="46"
+      y="62"
+      fill={WHITE}
+      fontFamily="Inter, system-ui, -apple-system, sans-serif"
+      fontSize="76"
+      fontWeight="800"
+      textAnchor="middle"
+      dominantBaseline="central"
+      letterSpacing="-0.04em"
+    >
+      B
+    </text>
+    {/* Superscript 2 — smaller, raised, slightly offset right */}
+    <text
+      x="86"
+      y="36"
+      fill={WHITE}
+      fontFamily="Inter, system-ui, -apple-system, sans-serif"
+      fontSize="32"
+      fontWeight="700"
+      textAnchor="middle"
+      dominantBaseline="central"
+    >
+      2
+    </text>
+  </svg>
+);
+
+// ══════════════════════════════════════════════════════════════════
+// SECTION 3 — Double B variants (distinct visual treatments)
+// ══════════════════════════════════════════════════════════════════
+
+// 2a — bb tight. Two lowercase b's with aggressive negative kerning
+// so they nearly fuse into one shape.
+const DoubleBTight = () => (
+  <svg
+    viewBox="0 0 120 120"
+    width="120"
+    height="120"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-label="bb tight kern mark"
+  >
+    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
+    <text
+      x="60"
+      y="65"
+      fill={WHITE}
+      fontFamily="Inter, system-ui, -apple-system, sans-serif"
+      fontSize="78"
+      fontWeight="800"
+      textAnchor="middle"
+      dominantBaseline="central"
+      letterSpacing="-0.18em"
+    >
+      bb
+    </text>
+  </svg>
+);
+
+// 2b — BB depth shadow. Two uppercase B's stacked with an offset
+// so the back B reads as a soft shadow behind the front B.
+const DoubleBDepth = () => (
+  <svg
+    viewBox="0 0 120 120"
+    width="120"
+    height="120"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-label="BB depth shadow mark"
+  >
+    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
+    {/* Back B — dimmer, offset down-right to act as the shadow */}
+    <text
+      x="68"
+      y="68"
+      fill={WHITE}
+      fillOpacity="0.35"
+      fontFamily="Inter, system-ui, -apple-system, sans-serif"
+      fontSize="76"
+      fontWeight="800"
+      textAnchor="middle"
+      dominantBaseline="central"
+      letterSpacing="-0.04em"
+    >
+      B
+    </text>
+    {/* Front B — full white, normal position */}
+    <text
+      x="52"
+      y="52"
+      fill={WHITE}
+      fontFamily="Inter, system-ui, -apple-system, sans-serif"
+      fontSize="76"
+      fontWeight="800"
+      textAnchor="middle"
+      dominantBaseline="central"
+      letterSpacing="-0.04em"
+    >
+      B
+    </text>
+  </svg>
+);
+
+// 2c — bb diagonal. Two lowercase b's staggered diagonally — one
+// in the upper-left, one in the lower-right. Creates motion / step.
+const DoubleBDiagonal = () => (
+  <svg
+    viewBox="0 0 120 120"
+    width="120"
+    height="120"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-label="bb diagonal stagger mark"
+  >
+    <rect x="0" y="0" width="120" height="120" rx="26" fill={ACCENT} />
+    <text
+      x="42"
+      y="44"
+      fill={WHITE}
+      fontFamily="Inter, system-ui, -apple-system, sans-serif"
+      fontSize="56"
+      fontWeight="800"
+      textAnchor="middle"
+      dominantBaseline="central"
+      letterSpacing="-0.04em"
+    >
+      b
+    </text>
+    <text
+      x="78"
+      y="78"
+      fill={WHITE}
+      fontFamily="Inter, system-ui, -apple-system, sans-serif"
+      fontSize="56"
+      fontWeight="800"
+      textAnchor="middle"
+      dominantBaseline="central"
+      letterSpacing="-0.04em"
+    >
+      b
+    </text>
   </svg>
 );
 
@@ -564,190 +348,151 @@ const Concept6Mark = () => (
 
 const sections: Section[] = [
   {
-    eyebrow: "REFINEMENTS · CONCEPT 2",
-    title: "Bracket wordmark",
+    eyebrow: "SELECTED · KEEPERS",
+    title: "Locked direction",
     description:
-      "The weakness of the original is no companion mark for favicon contexts. Three refinements explore different bracket treatments and a paired favicon glyph.",
+      "These are the two pieces you committed to. The bracket wordmark is the primary brand expression. The signal-in-noise mark serves as a secondary accent (loading states, social avatars, empty states). The favicon mark is still TBD — that's what the next two sections are for.",
     concepts: [
       {
-        number: "ORIGINAL",
-        title: "[byte]boundless",
+        number: "PRIMARY",
+        title: "[byte]boundless wordmark",
         description:
-          "Square brackets in mono, boundless in sans. The baseline — reference for comparing the refinements.",
-        pros: ["Immediately reads as tech-native", "Strong typographic contrast"],
-        cons: [
-          "No symbolic mark for square contexts",
-          "Square brackets feel slightly generic",
+          "Primary brand expression. Mono brackets, sans body. Use in the sidebar header, footer, marketing hero, email headers, and OG card body.",
+        pros: [
+          "Distinctive and instantly tech-native",
+          "Strong typographic contrast between mono and sans",
+          "No competition in the SaaS category",
         ],
-        svg: <Concept2Original />,
+        cons: ["Wide aspect ratio — needs the favicon mark for square contexts"],
+        svg: <Wordmark />,
         wide: true,
+        highlight: "PRIMARY",
       },
       {
-        number: "2a",
-        title: "Angle brackets",
+        number: "SECONDARY",
+        title: "Signal in noise",
         description:
-          "<byte>boundless with HTML/tag energy. Same structure, stronger developer-specific read.",
+          "Secondary accent mark. Use it where the wordmark would be too literal — loading states, empty states, social avatars, marketing illustrations, the OG image background.",
         pros: [
-          "Immediately recognizable to the target audience (web devs)",
-          "More distinctive than square brackets",
-          "Angle glyphs create natural forward motion",
+          "Tells the product story in one glance",
+          "Unique in the SaaS category",
+          "Works at any size",
+        ],
+        cons: ["Doesn't say 'B' or 'byte' — abstract"],
+        svg: <SignalMark />,
+        highlight: "ACCENT",
+      },
+    ],
+  },
+  {
+    eyebrow: "EXPLORATION · SINGLE B",
+    title: "Favicon mark — single letter",
+    description:
+      "Three single-B treatments with distinct visual approaches. Each pulls away from the default 'letter on a rounded square' template in a different direction.",
+    concepts: [
+      {
+        number: "1a",
+        title: "B in circle",
+        description:
+          "Different container shape — circle instead of rounded square. Softer silhouette, more organic against the rest of the UI.",
+        pros: [
+          "Stands apart from generic SaaS rounded-square logos",
+          "Friendly, organic feel",
+          "Circle clips cleanly at any avatar size",
         ],
         cons: [
-          "Narrower read for non-developer prospects",
-          "Angle bracket weight varies by font — needs careful font pairing",
+          "Less coherent with the existing rounded-square UI in the app sidebar",
+          "Circle shape is less common for favicons",
         ],
-        svg: <Concept2Angle />,
-        wide: true,
+        svg: <SingleBCircle />,
+      },
+      {
+        number: "1b",
+        title: "Outlined B",
+        description:
+          "Stroke-only B inside an outlined square — no fill. Inverts the relationship between mark and ground, leaving negative space for the letterform.",
+        pros: [
+          "Distinctive — most logos are filled, not outlined",
+          "Lets the background show through (works on any color)",
+          "Light, modern, restrained",
+        ],
+        cons: [
+          "Less visual weight than a filled mark",
+          "Outline strokes can blur at 16px favicon size",
+        ],
+        svg: <SingleBOutline />,
+      },
+      {
+        number: "1c",
+        title: "B² (B-squared)",
+        description:
+          "Mathematical 'B squared' — semantic for the two Bs in ByteBoundless compressed into one symbol. The superscript reads instantly as 'twice'.",
+        pros: [
+          "Semantically tied to the brand name in a clever way",
+          "Distinctive — no other SaaS uses this construction",
+          "Works as a piece of marketing copy too ('B²')",
+        ],
+        cons: [
+          "May feel too clever / cute",
+          "Superscript 2 gets small and risks vanishing at favicon size",
+        ],
+        svg: <SingleBSquared />,
+      },
+    ],
+  },
+  {
+    eyebrow: "EXPLORATION · DOUBLE B",
+    title: "Favicon mark — two letters",
+    description:
+      "Three double-B treatments. Each tries a different way to combine two letterforms into one cohesive mark — aggressive kerning, depth/shadow, or staggered placement.",
+    concepts: [
+      {
+        number: "2a",
+        title: "bb tight kern",
+        description:
+          "Two lowercase b's with aggressive negative letter-spacing so they nearly fuse into a single visual shape. The bowls overlap creating a custom ligature feel.",
+        pros: [
+          "Reads as a single, intentional mark — not just two letters",
+          "Most type-driven of the double-B options",
+          "Compact enough for favicon use",
+        ],
+        cons: [
+          "Aggressive kerning can look like a typo if not executed well",
+          "Letterform overlap may smudge at very small sizes",
+        ],
+        svg: <DoubleBTight />,
       },
       {
         number: "2b",
-        title: "Stacked lockup",
+        title: "BB depth shadow",
         description:
-          "[byte] stacked over boundless. Fits square contexts (avatars, footer blocks) without needing a separate icon.",
+          "Two uppercase B's stacked with an offset so the back one reads as a soft shadow behind the front. Creates dimensionality without literal 3D effects.",
         pros: [
-          "Works in square contexts without a companion mark",
-          "Boundless gets more visual weight as the primary word",
-          "Still instantly legible",
+          "Most dynamic of the double-B options",
+          "Implies depth and layering — modern feel",
+          "Both Bs are individually legible",
         ],
         cons: [
-          "Wastes horizontal space in header/sidebar contexts",
-          "Two-line wordmarks are harder to scale",
+          "Drop-shadow style can feel dated if overdone",
+          "Two letters compete for attention at small sizes",
         ],
-        svg: <Concept2Stacked />,
+        svg: <DoubleBDepth />,
       },
       {
         number: "2c",
-        title: "Companion [b] mark",
+        title: "bb diagonal",
         description:
-          "Dedicated square mark with [b] inside, pairs with the bracket wordmark. Solves the favicon gap.",
+          "Two lowercase b's staggered diagonally — one in the upper-left, one in the lower-right. The arrangement suggests motion and progression.",
         pros: [
-          "Reuses the bracket motif from the wordmark for consistency",
-          "Works as favicon, app icon, and social avatar",
-          "Monospace [b] stays distinct at 16px",
+          "Forward-motion energy fits the lead-finding pitch",
+          "Most distinctive layout — no other brand does this",
+          "Diagonal balance feels modern",
         ],
         cons: [
-          "Still depends on the full wordmark being strong",
-          "Brackets at tiny sizes can look like noise",
+          "Less compact than other layouts",
+          "Diagonal staggering can feel decorative rather than essential",
         ],
-        svg: <Concept2Companion />,
-      },
-    ],
-  },
-  {
-    eyebrow: "REFINEMENTS · CONCEPT 4",
-    title: "Scanner / signal mark",
-    description:
-      "The weakness of the 3-ring radar is that it reads as security/monitoring software. Three refinements pull away from the radar-dashboard metaphor toward lead-finding specifically.",
-    concepts: [
-      {
-        number: "ORIGINAL",
-        title: "3-ring radar",
-        description:
-          "Concentric rings + sweep line. The baseline — reference for comparing the refinements.",
-        pros: ["Clearly 'scanning' energy", "Recognizable radar shape"],
-        cons: [
-          "Reads as security/monitoring (Sentry, Datadog)",
-          "Sweep line makes it feel busy at small sizes",
-        ],
-        svg: <Concept4Original />,
-      },
-      {
-        number: "4a",
-        title: "Focused pulse",
-        description:
-          "One ring, one dim pulse, solid center. Stripped back from the dashboard read toward a clean 'hit' or 'ping' signal.",
-        pros: [
-          "Much cleaner at favicon size",
-          "Focus shifts from 'scanning' to 'target found'",
-          "Distinctive circular silhouette",
-        ],
-        cons: [
-          "Abstract — still no letter reference",
-          "Can read as a generic 'dot' or record button",
-        ],
-        svg: <Concept4Pulse />,
-      },
-      {
-        number: "4b",
-        title: "Crosshair reticle",
-        description:
-          "Viewfinder-style crosshair with a center dot. Swaps the radar metaphor for targeting / aim.",
-        pros: [
-          "Clear 'finding the right one' metaphor",
-          "Distinct from SaaS monitoring marks",
-          "Reads well at small sizes — four tick marks are legible",
-        ],
-        cons: [
-          "Targeting imagery has weapon/military associations",
-          "Can feel aggressive for a sales-tool brand",
-        ],
-        svg: <Concept4Crosshair />,
-      },
-      {
-        number: "4c",
-        title: "Signal in noise",
-        description:
-          "Grid of dim dots with one highlighted. The most literal expression of the brand promise: finding the one lead worth pursuing out of many.",
-        pros: [
-          "Directly literalizes the product's core pitch",
-          "Unique in the category — no other SaaS uses this",
-          "Instantly tells a story at any size",
-        ],
-        cons: [
-          "More visually complex than a single-shape mark",
-          "Highlighted dot position matters a lot — needs tuning",
-        ],
-        svg: <Concept4Signal />,
-      },
-    ],
-  },
-  {
-    eyebrow: "REFERENCE · ORIGINAL SIX",
-    title: "Other directions from round one",
-    description:
-      "The directions you passed on last round, kept here for comparison. You can swap one in if any of the refinements aren't landing.",
-    concepts: [
-      {
-        number: "01",
-        title: "Refined B mark",
-        description: "Rounded square with a custom B in Inter Bold.",
-        pros: ["Lowest risk", "Reads at 16px favicon"],
-        cons: ["Most common direction"],
-        svg: <Concept1Mark />,
-      },
-      {
-        number: "★",
-        title: "Mark + wordmark lockup",
-        description: "Concept 1's mark paired with an Inter Bold wordmark.",
-        pros: ["One lockup covers every surface"],
-        cons: ["Still depends on the B mark being strong"],
-        svg: <LockupMark />,
-        wide: true,
-      },
-      {
-        number: "03",
-        title: "Boundary break",
-        description: "B in a square with an arrow escaping past the edge.",
-        pros: ["Direct visual metaphor for boundless"],
-        cons: ["Arrow complicates favicon cropping"],
-        svg: <Concept3Mark />,
-        wide: true,
-      },
-      {
-        number: "05",
-        title: "Pixel-stack B",
-        description: "B constructed from discrete squares.",
-        pros: ["Clever, distinctive"],
-        cons: ["Reads as retro/8-bit"],
-        svg: <Concept5Mark />,
-      },
-      {
-        number: "06",
-        title: "B chevron",
-        description: "B followed by a chevron suggesting forward motion.",
-        pros: ["More personality than straight B"],
-        cons: ["Dense at favicon size"],
-        svg: <Concept6Mark />,
+        svg: <DoubleBDiagonal />,
       },
     ],
   },
@@ -834,9 +579,9 @@ export default async function LogoConceptsPage() {
           Logo Concepts
         </h1>
         <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed max-w-2xl">
-          Refinements on concepts 2 (bracket wordmark) and 4 (scanner mark),
-          with the originals kept for side-by-side comparison. Delete this
-          page once a winner is picked.
+          Selected directions plus six favicon-mark explorations — three
+          single-B variants and three double-B variants. Pick a favicon mark
+          to complete the system.
         </p>
       </div>
 

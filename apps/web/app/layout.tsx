@@ -81,9 +81,11 @@ export const metadata: Metadata = {
     description: DEFAULT_DESCRIPTION,
     creator: "@byteboundless",
   },
-  icons: {
-    icon: "/favicon.ico",
-  },
+  // No `icons` field — Next.js auto-generates the <link rel="icon">
+  // tag from app/icon.tsx (the file-based metadata convention).
+  // Setting `icons` here would override that and point at a stale
+  // path. The original SEO pass set this to /favicon.ico, but the
+  // brand lockup deleted that file in favor of icon.tsx.
   category: "technology",
 };
 

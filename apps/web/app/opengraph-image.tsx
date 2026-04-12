@@ -7,14 +7,27 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 /**
- * Site-wide default OpenGraph image. Rendered as a simple branded
- * card with just text — no logo yet. When the logo is added, swap
- * the wordmark block for an <img> tag and redeploy.
+ * Site-wide default OpenGraph image. Uses the locked brand:
+ *   [b]   square mark in the eyebrow
+ *   [byte]boundless wordmark in the eyebrow
+ *   signal-in-noise grid as a corner accent
  *
  * ImageResponse uses a minimal React subset — inline styles only,
- * no Tailwind, no external CSS. System sans fallback works fine
- * without a custom font fetch, which keeps cold starts fast.
+ * no Tailwind, no external CSS. System fonts only (no custom font
+ * fetch) so cold starts stay fast. This means brackets and body
+ * text use the closest system mono / sans match — Inter and Geist
+ * Mono are loaded in-app via next/font but ImageResponse runs in
+ * an isolated runtime that doesn't share that.
  */
+
+// Brand palette (kept inline so this file is self-contained)
+const ACCENT = "#0066FF";
+const WHITE = "#FFFFFF";
+const TEXT = "#111111";
+const MONO_STACK =
+  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+const SANS_STACK =
+  "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
 export default async function OpengraphImage() {
   return new ImageResponse(
     (
@@ -47,41 +60,62 @@ export default async function OpengraphImage() {
           }}
         />
 
-        {/* Top eyebrow */}
+        {/* Top eyebrow — [b] mark + [byte]boundless wordmark */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 12,
+            gap: 16,
             marginBottom: 40,
           }}
         >
+          {/* [b] square mark */}
           <div
             style={{
-              width: 48,
-              height: 48,
-              background: "#0066FF",
-              color: "#FFFFFF",
-              borderRadius: 12,
+              width: 56,
+              height: 56,
+              background: ACCENT,
+              color: WHITE,
+              borderRadius: 14,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: 28,
               fontWeight: 700,
-              letterSpacing: "-0.02em",
+              fontFamily: MONO_STACK,
             }}
           >
-            B
+            [b]
           </div>
+          {/* [byte]boundless wordmark — mixed mono brackets + sans body */}
           <div
             style={{
-              fontSize: 22,
-              fontWeight: 700,
-              color: "#1A1A1A",
-              letterSpacing: "-0.02em",
+              display: "flex",
+              alignItems: "center",
             }}
           >
-            ByteBoundless
+            <span
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: ACCENT,
+                fontFamily: MONO_STACK,
+              }}
+            >
+              [byte]
+            </span>
+            <span
+              style={{
+                fontSize: 28,
+                fontWeight: 800,
+                color: TEXT,
+                fontFamily: SANS_STACK,
+                letterSpacing: "-0.02em",
+                marginLeft: 4,
+              }}
+            >
+              boundless
+            </span>
           </div>
         </div>
 
@@ -141,15 +175,56 @@ export default async function OpengraphImage() {
           ))}
         </div>
 
+        {/* Signal-in-noise mark — brand accent in the bottom-right
+            corner. A 5x5 grid of dots with one highlighted, the
+            same secondary mark used elsewhere. Tells the product
+            story visually. */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 80,
+            right: 96,
+            width: 160,
+            height: 160,
+            background: ACCENT,
+            borderRadius: 28,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            gap: 6,
+          }}
+        >
+          {/* 25 dots in a 5x5 grid. The 13th (row=2,col=2) is the
+              "signal" — bigger and full opacity. The rest are dim. */}
+          {Array.from({ length: 25 }).map((_, i) => {
+            const isSignal = i === 13;
+            return (
+              <div
+                key={i}
+                style={{
+                  width: isSignal ? 14 : 8,
+                  height: isSignal ? 14 : 8,
+                  borderRadius: "50%",
+                  background: WHITE,
+                  opacity: isSignal ? 1 : 0.35,
+                  margin: isSignal ? 0 : 3,
+                }}
+              />
+            );
+          })}
+        </div>
+
         {/* URL at the bottom */}
         <div
           style={{
             position: "absolute",
             bottom: 56,
-            right: 96,
+            left: 96,
             fontSize: 20,
             color: "#888",
-            fontFamily: "ui-monospace, Menlo, Monaco, monospace",
+            fontFamily: MONO_STACK,
             fontWeight: 500,
           }}
         >

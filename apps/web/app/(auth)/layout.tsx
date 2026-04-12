@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Wordmark } from "@/components/brand/wordmark";
 
 export default function AuthLayout({
   children,
@@ -15,12 +16,13 @@ export default function AuthLayout({
 
         {/* Content */}
         <div className="relative z-10 max-w-md text-center">
-          {/* Logo */}
+          {/* Logo — inverse variant since the panel background is blue */}
           <Link
             href="/"
-            className="font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight text-white"
+            className="inline-flex justify-center"
+            aria-label="ByteBoundless home"
           >
-            ByteBoundless
+            <Wordmark variant="inverse" className="h-10 w-auto" />
           </Link>
 
           {/* Tagline */}

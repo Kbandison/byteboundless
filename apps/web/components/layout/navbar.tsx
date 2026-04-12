@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { NAV_LINKS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
+import { Wordmark } from "@/components/brand/wordmark";
 
 export function Navbar() {
   const { setTheme, mounted, isDark } = useTheme();
@@ -43,12 +44,9 @@ export function Navbar() {
         )}
       >
         <div className="mx-auto max-w-7xl px-6 md:px-8 h-16 flex items-center justify-between">
-          {/* Logo */}
-          <Link
-            href="/"
-            className="font-[family-name:var(--font-display)] text-lg font-bold tracking-tight"
-          >
-            ByteBoundless
+          {/* Logo — wordmark, links to home */}
+          <Link href="/" className="flex items-center" aria-label="ByteBoundless home">
+            <Wordmark className="h-6 w-auto" />
           </Link>
 
           {/* Center Links */}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FOOTER_LINKS } from "@/lib/constants";
+import { Wordmark } from "@/components/brand/wordmark";
 
 export function Footer() {
   return (
@@ -8,9 +9,7 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-16">
           {/* Brand */}
           <div className="col-span-2 md:col-span-2">
-            <span className="font-[family-name:var(--font-display)] text-lg font-bold tracking-tight">
-              ByteBoundless
-            </span>
+            <Wordmark className="h-7 w-auto" />
             <p className="text-sm text-[var(--color-text-secondary)] mt-3 max-w-xs leading-relaxed">
               Lead intelligence for freelance web developers. Find businesses
               that need better websites.
@@ -53,9 +52,7 @@ export function Footer() {
         </div>
 
         <div className="border-t border-[var(--color-border)] pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <span className="font-[family-name:var(--font-display)] font-bold text-sm">
-            ByteBoundless
-          </span>
+          <Wordmark className="h-5 w-auto" />
           <p className="text-xs text-[var(--color-text-secondary)]">
             &copy; {new Date().getFullYear()} ByteBoundless. All rights
             reserved.

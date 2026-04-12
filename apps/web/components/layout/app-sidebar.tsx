@@ -20,6 +20,8 @@ import {
   Search,
 } from "lucide-react";
 import { FeedbackTooltip } from "@/components/ui/feedback-tooltip";
+import { Mark } from "@/components/brand/mark";
+import { Wordmark } from "@/components/brand/wordmark";
 import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { APP_NAV_LINKS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -128,12 +130,13 @@ export function AppSidebar() {
         )}>
           <Link
             href="/dashboard"
-            className="font-[family-name:var(--font-display)] font-bold tracking-tight text-[var(--color-text-primary)] flex items-center gap-2 min-w-0"
+            className="flex items-center gap-2 min-w-0"
+            aria-label="ByteBoundless dashboard"
           >
             {collapsed ? (
-              <span className="w-8 h-8 rounded-lg bg-[var(--color-accent)] text-white flex items-center justify-center text-sm">B</span>
+              <Mark className="w-8 h-8" />
             ) : (
-              <span className="text-lg truncate">ByteBoundless</span>
+              <Wordmark className="h-6 w-auto" />
             )}
           </Link>
           {!collapsed && (

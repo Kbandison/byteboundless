@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Mail, ArrowRight, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Wordmark } from "@/components/brand/wordmark";
+import { OAuthButtons, OAuthDivider } from "@/components/auth/oauth-buttons";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -47,14 +48,18 @@ export default function LoginPage() {
       <div className="bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl p-8 shadow-sm">
         {!submitted ? (
           <>
-            <div className="mb-8">
+            <div className="mb-6">
               <h1 className="text-2xl font-bold tracking-tight font-[family-name:var(--font-display)]">
                 Welcome back
               </h1>
               <p className="mt-2 text-sm text-[var(--color-text-secondary)] font-[family-name:var(--font-body)]">
-                Enter your email to receive a magic link.
+                Sign in with one click, or get a magic link by email.
               </p>
             </div>
+
+            {/* OAuth providers — fastest path for repeat users */}
+            <OAuthButtons />
+            <OAuthDivider />
 
             {error && (
               <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">

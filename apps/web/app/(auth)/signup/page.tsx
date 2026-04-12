@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Mail, ArrowRight, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Wordmark } from "@/components/brand/wordmark";
+import { OAuthButtons, OAuthDivider } from "@/components/auth/oauth-buttons";
 
 export default function SignupPage() {
   // useSearchParams requires a Suspense boundary at the page level during
@@ -71,7 +72,7 @@ function SignupForm() {
       <div className="bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl p-8 shadow-sm">
         {!submitted ? (
           <>
-            <div className="mb-8">
+            <div className="mb-6">
               <h1 className="text-2xl font-bold tracking-tight font-[family-name:var(--font-display)]">
                 {isValidPlan
                   ? `Sign up for ${planIntent === "pro" ? "Pro" : "Agency"}`
@@ -79,10 +80,17 @@ function SignupForm() {
               </h1>
               <p className="mt-2 text-sm text-[var(--color-text-secondary)] font-[family-name:var(--font-body)]">
                 {isValidPlan
-                  ? "Enter your email — we'll send you a magic link and take you straight to checkout after you sign in."
-                  : "Enter your email to get started with a magic link."}
+                  ? "Sign up with one click — we'll take you straight to checkout after."
+                  : "Sign up with one click, or use email for a magic link."}
               </p>
             </div>
+
+            {/* OAuth providers — first-time users go from zero to
+                signed-in in one click. Threads the plan intent
+                through the auth callback the same way the magic
+                link flow does. */}
+            <OAuthButtons next={isValidPlan ? `/auth/checkout?plan=${planIntent}` : undefined} />
+            <OAuthDivider />
 
             {error && (
               <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">

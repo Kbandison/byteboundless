@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Mail, ArrowRight, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Wordmark } from "@/components/brand/wordmark";
 
 export default function SignupPage() {
   // useSearchParams requires a Suspense boundary at the page level during
@@ -61,12 +62,9 @@ function SignupForm() {
   return (
     <div className="w-full max-w-md">
       {/* Mobile-only brand header (left panel is hidden on mobile) */}
-      <div className="lg:hidden mb-8 text-center">
-        <Link
-          href="/"
-          className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight text-[var(--color-text-primary)]"
-        >
-          ByteBoundless
+      <div className="lg:hidden mb-8 flex justify-center">
+        <Link href="/" aria-label="ByteBoundless home">
+          <Wordmark className="h-7 w-auto" />
         </Link>
       </div>
 

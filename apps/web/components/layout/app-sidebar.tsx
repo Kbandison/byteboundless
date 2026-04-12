@@ -103,9 +103,10 @@ export function AppSidebar() {
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 h-16 bg-[var(--color-bg-tertiary)] border-b border-[var(--color-border)] flex items-center justify-between px-4">
         <Link
           href="/dashboard"
-          className="font-[family-name:var(--font-display)] text-lg font-bold tracking-tight text-[var(--color-text-primary)]"
+          className="flex items-center"
+          aria-label="ByteBoundless dashboard"
         >
-          ByteBoundless
+          <Wordmark className="h-6 w-auto" />
         </Link>
         <button
           className="p-3 -mr-3 min-h-[44px] min-w-[44px] flex items-center justify-center"

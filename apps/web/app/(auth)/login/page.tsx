@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Mail, ArrowRight, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Wordmark } from "@/components/brand/wordmark";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -37,12 +38,9 @@ export default function LoginPage() {
   return (
     <div className="w-full max-w-md">
       {/* Mobile-only brand header (left panel is hidden on mobile) */}
-      <div className="lg:hidden mb-8 text-center">
-        <Link
-          href="/"
-          className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight text-[var(--color-text-primary)]"
-        >
-          ByteBoundless
+      <div className="lg:hidden mb-8 flex justify-center">
+        <Link href="/" aria-label="ByteBoundless home">
+          <Wordmark className="h-7 w-auto" />
         </Link>
       </div>
 

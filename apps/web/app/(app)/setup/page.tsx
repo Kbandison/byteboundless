@@ -43,13 +43,27 @@ export default function SetupPage() {
   const [services, setServices] = useState<string[]>([]);
   const [yearsExperience, setYearsExperience] = useState<string>("");
 
+  // Pull the authenticated user. If they signed up via OAuth (Google /
+  // GitHub), pre-fill the fields we can extract from the OAuth profile
+  // so they have less to type during onboarding.
   useEffect(() => {
     async function getUser() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
+      if (!user) return;
+      setUserId(user.id);
+
+      // OAuth providers stash profile data in user_metadata. Google
+      // uses `full_name`, GitHub uses `name` or `user_name`. Both
+      // provide `avatar_url` but we don't have an avatar field (yet).
+      const meta = user.user_metadata as Record<string, string> | undefined;
+      if (meta) {
+        const name = meta.full_name || meta.name || meta.user_name;
+        if (name && !fullName) setFullName(name);
+      }
     }
     getUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleFinish = async () => {

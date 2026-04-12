@@ -12,12 +12,14 @@ import {
   LogOut,
   Check,
   X,
+  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { SettingsSkeleton } from "@/components/ui/skeletons";
 import { SubscriptionManagement } from "./subscription-management";
+import { ConnectedAccounts } from "./connected-accounts";
 import { cn } from "@/lib/utils";
 
 const SERVICE_OPTIONS = [
@@ -77,11 +79,12 @@ const PLANS = [
   },
 ];
 
-type Section = "profile" | "billing" | "notifications" | "danger";
+type Section = "profile" | "billing" | "accounts" | "notifications" | "danger";
 
 const NAV_ITEMS: { key: Section; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
   { key: "billing", label: "Billing", icon: CreditCard },
+  { key: "accounts", label: "Connected Accounts", icon: Link2 },
   { key: "notifications", label: "Notifications", icon: Bell },
   { key: "danger", label: "Danger Zone", icon: AlertTriangle },
 ];
@@ -117,7 +120,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const readHash = () => {
       const hash = window.location.hash.replace("#", "") as Section;
-      if (["profile", "billing", "notifications", "danger"].includes(hash)) {
+      if (["profile", "billing", "accounts", "notifications", "danger"].includes(hash)) {
         setActiveSection(hash);
       }
     };
@@ -701,6 +704,20 @@ export default function SettingsPage() {
                   skipped by the component's own hasSubscription check).
                   Replaced the old Stripe Billing Portal trip. */}
               <SubscriptionManagement />
+            </section>
+          )}
+
+          {/* ─── Connected Accounts Section ─── */}
+          {activeSection === "accounts" && (
+            <section>
+              <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold text-[var(--color-text-primary)] mb-2">
+                Connected Accounts
+              </h2>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-6">
+                Link Google or GitHub to sign in with one click instead
+                of waiting for a magic link email.
+              </p>
+              <ConnectedAccounts />
             </section>
           )}
 

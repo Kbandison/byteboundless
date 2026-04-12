@@ -56,6 +56,79 @@ const PLAN_LIMITS: Record<string, { options: number[]; max: number }> = {
   agency: { options: [25, 50, 100, 200, 500, 1000], max: 1000 },
 };
 
+// ─── Time estimation ─────────────────────────────────────────────
+// Rough but honest estimates for each pipeline phase based on the
+// current search config. These drive the per-radius labels AND the
+// summary breakdown shown below the form.
+//
+// The numbers come from real-world observation of the worker:
+//   Collecting: 1-8 min depending on radius (Google Maps scrolling)
+//   Extracting: ~3s per listing (sequential, visiting each Maps page)
+//   Enriching:  ~0.5s per site effective (parallel at concurrency 8)
+//   Lighthouse: ~30s per reachable site (sequential, PSI API)
+//
+// We round to whole minutes and show ranges (min–max) because the
+// actual time depends on network conditions, Google responsiveness,
+// and how many businesses have working websites.
+
+const COLLECT_TIME: Record<string, [number, number]> = {
+  city:      [1, 2],
+  nearby:    [1, 3],
+  region:    [2, 5],
+  statewide: [3, 8],
+};
+
+interface TimeEstimate {
+  collecting: [number, number];
+  extracting: [number, number];
+  enriching: [number, number];
+  lighthouse: [number, number];
+  total: [number, number];
+}
+
+function estimateTime(opts: {
+  radius: string;
+  maxResults: number;
+  enrich: boolean;
+  hasLighthouse: boolean;
+}): TimeEstimate {
+  const collecting = COLLECT_TIME[opts.radius] ?? [2, 4];
+
+  // Extraction: ~3-4s per listing (sequential)
+  const extractMin = Math.round((opts.maxResults * 2.5) / 60);
+  const extractMax = Math.round((opts.maxResults * 4) / 60);
+  const extracting: [number, number] = [Math.max(1, extractMin), Math.max(1, extractMax)];
+
+  let enriching: [number, number] = [0, 0];
+  let lighthouse: [number, number] = [0, 0];
+
+  if (opts.enrich) {
+    // Enrichment: parallel at ~8 concurrent, ~2-4s per site
+    const enrichMin = Math.round((opts.maxResults * 0.3) / 60);
+    const enrichMax = Math.round((opts.maxResults * 0.6) / 60);
+    enriching = [Math.max(1, enrichMin), Math.max(1, enrichMax)];
+
+    if (opts.hasLighthouse) {
+      // Lighthouse: ~25-40s per reachable site (sequential). ~70% of
+      // results typically have working websites.
+      const reachable = Math.round(opts.maxResults * 0.7);
+      const lhMin = Math.round((reachable * 25) / 60);
+      const lhMax = Math.round((reachable * 40) / 60);
+      lighthouse = [Math.max(1, lhMin), Math.max(1, lhMax)];
+    }
+  }
+
+  const totalMin = collecting[0] + extracting[0] + enriching[0] + lighthouse[0];
+  const totalMax = collecting[1] + extracting[1] + enriching[1] + lighthouse[1];
+
+  return { collecting, extracting, enriching, lighthouse, total: [totalMin, totalMax] };
+}
+
+function formatRange(range: [number, number]): string {
+  if (range[0] === range[1]) return `~${range[0]} min`;
+  return `~${range[0]}–${range[1]} min`;
+}
+
 /* ------------------------------------------------------------------
    Search Form (inner component that uses useSearchParams)
    ------------------------------------------------------------------ */
@@ -266,36 +339,101 @@ function NewSearchForm() {
             </label>
             <HelpTip text="City: exact city results only. Nearby: includes surrounding ~25mi. Region: wider ~50mi metro area. Statewide: entire state. Larger areas take longer to scrape." />
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              { value: "city", label: "City Only", time: "~2 min" },
-              { value: "nearby", label: "Nearby", time: "~3 min" },
-              { value: "region", label: "Region", time: "~5 min" },
-              { value: "statewide", label: "Statewide", time: "~8 min" },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setRadius(opt.value)}
-                className={cn(
-                  "flex flex-col items-center py-2.5 px-3 rounded-lg border text-xs font-medium transition-all duration-200",
-                  radius === opt.value
-                    ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
-                    : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]"
+          {(() => {
+            const hasLighthouse = plan !== "free" && enrich;
+            const radiusOptions = [
+              { value: "city", label: "City Only" },
+              { value: "nearby", label: "Nearby" },
+              { value: "region", label: "Region" },
+              { value: "statewide", label: "Statewide" },
+            ];
+            // Compute estimate for the SELECTED config (used for the
+            // breakdown below). Per-radius labels just show collecting
+            // time — the breakdown shows the full picture.
+            const est = estimateTime({ radius, maxResults, enrich, hasLighthouse });
+            return (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {radiusOptions.map((opt) => {
+                    const optEst = estimateTime({ radius: opt.value, maxResults, enrich, hasLighthouse });
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setRadius(opt.value)}
+                        className={cn(
+                          "flex flex-col items-center py-2.5 px-3 rounded-lg border text-xs font-medium transition-all duration-200",
+                          radius === opt.value
+                            ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                            : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]"
+                        )}
+                      >
+                        <span>{opt.label}</span>
+                        <span className={cn("text-[10px] mt-0.5", radius === opt.value ? "text-[var(--color-accent)]/70" : "text-[var(--color-text-dim)]")}>
+                          {formatRange(optEst.total)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {(radius === "region" || radius === "statewide") && (
+                  <p className="text-[11px] text-amber-600 mt-2">
+                    {radius === "statewide"
+                      ? "Statewide searches collect more listings and take significantly longer. Consider using 100-200 max results."
+                      : "Region searches include a wider metro area and may take a few extra minutes."}
+                  </p>
                 )}
-              >
-                <span>{opt.label}</span>
-                <span className={cn("text-[10px] mt-0.5", radius === opt.value ? "text-[var(--color-accent)]/70" : "text-[var(--color-text-dim)]")}>{opt.time}</span>
-              </button>
-            ))}
-          </div>
-          {(radius === "region" || radius === "statewide") && (
-            <p className="text-[11px] text-amber-600 mt-2">
-              {radius === "statewide"
-                ? "Statewide searches collect more listings and take significantly longer. Consider using 100-200 max results."
-                : "Region searches include a wider metro area and may take a few extra minutes."}
-            </p>
-          )}
+
+                {/* Time breakdown — shows what each phase contributes so
+                    the user understands WHY a search takes N minutes
+                    and which toggle controls what. Updates live as they
+                    change radius, maxResults, and enrichment. */}
+                <div className="mt-4 p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50">
+                  <div className="flex items-baseline justify-between mb-2">
+                    <span className="text-xs font-medium text-[var(--color-text-primary)]">
+                      Estimated total
+                    </span>
+                    <span className="text-xs font-bold font-[family-name:var(--font-mono)] text-[var(--color-accent)]">
+                      {formatRange(est.total)}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 text-[11px] text-[var(--color-text-dim)]">
+                    <div className="flex justify-between">
+                      <span>Collecting listings</span>
+                      <span className="font-[family-name:var(--font-mono)]">{formatRange(est.collecting)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Extracting details</span>
+                      <span className="font-[family-name:var(--font-mono)]">{formatRange(est.extracting)}</span>
+                    </div>
+                    {enrich && (
+                      <div className="flex justify-between">
+                        <span>Website enrichment</span>
+                        <span className="font-[family-name:var(--font-mono)]">{formatRange(est.enriching)}</span>
+                      </div>
+                    )}
+                    {hasLighthouse && (
+                      <div className="flex justify-between text-[var(--color-text-secondary)]">
+                        <span className="font-medium">Lighthouse audits (Pro)</span>
+                        <span className="font-[family-name:var(--font-mono)] font-medium">{formatRange(est.lighthouse)}</span>
+                      </div>
+                    )}
+                    {!enrich && (
+                      <p className="text-[10px] text-[var(--color-text-dim)] mt-1 italic">
+                        Enrichment is off — no website visits, no Lighthouse. Fastest option.
+                      </p>
+                    )}
+                    {enrich && !hasLighthouse && plan === "free" && (
+                      <p className="text-[10px] text-[var(--color-text-dim)] mt-1 italic">
+                        Lighthouse audits are a Pro feature. Free searches skip them, saving significant time.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         {/* Max results */}

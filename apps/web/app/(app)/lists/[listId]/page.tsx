@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { use } from "react";
-import { ArrowLeft, Trash2, Loader2, Star, Phone } from "lucide-react";
+import { ArrowLeft, Trash2, Loader2, Star, Phone, Send } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { getScoreColor, TECH_STACK_COLORS } from "@/lib/constants";
+import { useCrmPush } from "@/hooks/use-crm-push";
 
 interface ListItem {
   id: string;
@@ -33,6 +34,8 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
   const [listName, setListName] = useState("");
   const [items, setItems] = useState<ListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const crmEnabled = useCrmPush();
 
   useEffect(() => {
     async function fetchData() {
@@ -71,6 +74,34 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
     }
     fetchData();
   }, [listId]);
+
+  // Hand the whole list to the CRM, where the calling gets logged. Re-sending
+  // is safe — the CRM skips businesses it already has.
+  async function sendListToCrm() {
+    setSending(true);
+    try {
+      const res = await fetch("/api/crm/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.error ?? "Could not send to the CRM");
+        return;
+      }
+      toast.success(
+        `Sent ${body.imported} to the CRM`,
+        body.skipped > 0
+          ? { description: `${body.skipped} already there — skipped.` }
+          : undefined
+      );
+    } catch {
+      toast.error("Could not reach the CRM");
+    } finally {
+      setSending(false);
+    }
+  }
 
   // Undo-capable remove: drop the row from the UI optimistically, show a
   // toast with an Undo action, and only delete from the DB after the undo
@@ -132,12 +163,26 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
         <ArrowLeft className="w-4 h-4" /> Back to lists
       </Link>
 
-      <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight mb-2">
-        {listName}
-      </h1>
-      <p className="text-sm text-[var(--color-text-secondary)] mb-8">
-        {items.length} lead{items.length !== 1 ? "s" : ""}
-      </p>
+      <div className="flex items-start justify-between gap-4 mb-8">
+        <div>
+          <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight mb-2">
+            {listName}
+          </h1>
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            {items.length} lead{items.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        {crmEnabled && items.length > 0 && (
+          <button
+            onClick={sendListToCrm}
+            disabled={sending}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/40 hover:text-[var(--color-accent)] transition-all duration-300 disabled:opacity-50 shrink-0"
+          >
+            <Send className="w-4 h-4" />
+            {sending ? "Sending..." : "Send to CRM"}
+          </button>
+        )}
+      </div>
 
       {items.length > 0 ? (
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] overflow-hidden divide-y divide-[var(--color-border)]/50">

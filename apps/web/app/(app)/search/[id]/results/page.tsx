@@ -19,11 +19,13 @@ import {
   CheckCircle2,
   Lock,
   X,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { usePlan, isPaidPlan } from "@/hooks/use-plan";
+import { useCrmPush } from "@/hooks/use-crm-push";
 import { TECH_STACK_COLORS, getScoreColor } from "@/lib/constants";
 import { ResultsSkeleton } from "@/components/ui/skeletons";
 import { ListPicker } from "@/components/ui/list-picker";
@@ -153,6 +155,7 @@ export default function ResultsPage({
   const { id } = use(params);
   const plan = usePlan();
   const paid = isPaidPlan(plan);
+  const crmEnabled = useCrmPush();
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
   const [jobQuery, setJobQuery] = useState("");
   const [jobLocation, setJobLocation] = useState("");
@@ -179,7 +182,7 @@ export default function ResultsPage({
   // Bulk-action selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showListPicker, setShowListPicker] = useState(false);
-  const [bulkLoading, setBulkLoading] = useState<"contact" | null>(null);
+  const [bulkLoading, setBulkLoading] = useState<"contact" | "crm" | null>(null);
   const router = useRouter();
 
   function startUpgrade() {
@@ -424,6 +427,41 @@ export default function ResultsPage({
       if (failed > 0) toast.error(`Marked ${ok}, failed ${failed}`);
       else toast.success(`Marked ${ok} as contacted`);
       clearSelection();
+    } finally {
+      setBulkLoading(null);
+    }
+  }
+
+  // Hand the selection to the CRM, where the actual calling gets logged.
+  async function bulkSendToCrm() {
+    setBulkLoading("crm");
+    try {
+      const res = await fetch("/api/crm/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessIds: Array.from(selectedIds) }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.error ?? "Could not send to the CRM");
+        return;
+      }
+      const held = (body.conflicts ?? [])
+        .map((c: { heldBy: string | null }) => c.heldBy)
+        .filter(Boolean);
+      toast.success(
+        `Sent ${body.imported} to the CRM`,
+        body.skipped > 0
+          ? {
+              description: held.length
+                ? `${body.skipped} skipped — already being called${held[0] === "pipeline" ? "" : ` by ${held[0]}`}.`
+                : `${body.skipped} skipped as duplicates.`,
+            }
+          : undefined
+      );
+      clearSelection();
+    } catch {
+      toast.error("Could not reach the CRM");
     } finally {
       setBulkLoading(null);
     }
@@ -835,6 +873,19 @@ export default function ResultsPage({
                 <span className="sm:hidden">
                   {bulkLoading === "contact" ? "..." : "Contact"}
                 </span>
+              </button>
+            )}
+            {crmEnabled && (
+              <button
+                onClick={bulkSendToCrm}
+                disabled={bulkLoading === "crm"}
+                className="inline-flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors disabled:opacity-50 shrink-0"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">
+                  {bulkLoading === "crm" ? "Sending..." : "Send to CRM"}
+                </span>
+                <span className="sm:hidden">{bulkLoading === "crm" ? "..." : "CRM"}</span>
               </button>
             )}
             {paid ? (

@@ -20,20 +20,51 @@ export function crmConfig(): CrmConfig | null {
 }
 
 /**
- * Who may push. Admins always; plus anyone listed in CRM_PUSH_EMAILS, so the
- * studio's setter can send leads without being made a ByteBoundless admin.
+ * Who is studio staff. Admins always; plus anyone listed in CRM_PUSH_EMAILS,
+ * so the setter can send leads without being made a ByteBoundless admin.
+ *
+ * Deliberately independent of whether the CRM env vars are set — that split is
+ * what lets `crmStatus` say *which* half is missing.
  */
-export function canPushToCrm(
+export function isCrmOperator(
   email: string | null | undefined,
   role: string | null | undefined,
 ): boolean {
-  if (!crmConfig()) return false;
   if (role === "admin") return true;
   const allowed = (process.env.CRM_PUSH_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
   return !!email && allowed.includes(email.trim().toLowerCase());
+}
+
+/** Both halves must hold: the CRM is reachable AND this person may push. */
+export function canPushToCrm(
+  email: string | null | undefined,
+  role: string | null | undefined,
+): boolean {
+  return !!crmConfig() && isCrmOperator(email, role);
+}
+
+export type CrmStatus = {
+  enabled: boolean;
+  /** LUXWEB_CRM_URL + LUXWEB_CRM_INGEST_KEY are present on this deployment. */
+  configured: boolean;
+  /** This account is allowed to push. */
+  operator: boolean;
+};
+
+/**
+ * Why the feature is on or off. Reported only to studio staff — a customer
+ * shouldn't learn anything about the studio's internal wiring.
+ */
+export function crmStatus(
+  email: string | null | undefined,
+  role: string | null | undefined,
+): CrmStatus {
+  const configured = !!crmConfig();
+  const operator = isCrmOperator(email, role);
+  return { enabled: configured && operator, configured, operator };
 }
 
 export type CrmLead = {

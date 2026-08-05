@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { canPushToCrm, mapBusinessesToLeads, pushLeadsToCrm } from "@/lib/crm";
+import { canPushToCrm, crmStatus, mapBusinessesToLeads, pushLeadsToCrm } from "@/lib/crm";
 
 /**
  * Send businesses to LuxWeb CRM as prospects on a setter's call list.
@@ -30,7 +30,16 @@ async function gate() {
   return { supabase, profile };
 }
 
-/** Lets the UI decide whether to show the button at all. */
+/**
+ * Lets the UI decide whether to show the button — and, for studio staff, says
+ * *why* it's off. `configured: false` means this deployment is missing
+ * LUXWEB_CRM_URL / LUXWEB_CRM_INGEST_KEY (remember Vercel bakes env vars in at
+ * deploy time, so adding them needs a redeploy). `operator: false` means the
+ * account isn't an admin and isn't in CRM_PUSH_EMAILS.
+ *
+ * Customers get a bare `enabled: false` — the breakdown would leak how the
+ * studio is wired up.
+ */
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -45,7 +54,8 @@ export async function GET() {
     .single();
   const profile = data as { email: string; role: string } | null;
 
-  return NextResponse.json({ enabled: canPushToCrm(profile?.email, profile?.role) });
+  const status = crmStatus(profile?.email, profile?.role);
+  return NextResponse.json(status.operator ? status : { enabled: false });
 }
 
 export async function POST(request: Request) {

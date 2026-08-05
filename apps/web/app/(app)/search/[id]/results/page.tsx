@@ -432,14 +432,15 @@ export default function ResultsPage({
     }
   }
 
-  // Hand the selection to the CRM, where the actual calling gets logged.
-  async function bulkSendToCrm() {
+  // Hand businesses to the CRM, where the actual calling gets logged.
+  async function sendToCrm(ids: string[]) {
+    if (ids.length === 0) return;
     setBulkLoading("crm");
     try {
       const res = await fetch("/api/crm/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessIds: Array.from(selectedIds) }),
+        body: JSON.stringify({ businessIds: ids }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -449,15 +450,17 @@ export default function ResultsPage({
       const held = (body.conflicts ?? [])
         .map((c: { heldBy: string | null }) => c.heldBy)
         .filter(Boolean);
+      const parts = [
+        body.assigned_to ? `Assigned to ${body.assigned_to}.` : null,
+        body.skipped > 0
+          ? held.length
+            ? `${body.skipped} skipped — already being called${held[0] === "pipeline" ? "" : ` by ${held[0]}`}.`
+            : `${body.skipped} skipped as duplicates.`
+          : null,
+      ].filter(Boolean);
       toast.success(
         `Sent ${body.imported} to the CRM`,
-        body.skipped > 0
-          ? {
-              description: held.length
-                ? `${body.skipped} skipped — already being called${held[0] === "pipeline" ? "" : ` by ${held[0]}`}.`
-                : `${body.skipped} skipped as duplicates.`,
-            }
-          : undefined
+        parts.length ? { description: parts.join(" ") } : undefined
       );
       clearSelection();
     } catch {
@@ -570,6 +573,29 @@ export default function ResultsPage({
               </span>
             )}
           </button>
+          {crmEnabled && (
+            <button
+              onClick={() => {
+                const ids = sorted.map((b) => b.id);
+                if (ids.length === 0) return;
+                // Guard the toolbar button — unlike the bulk bar it acts on the
+                // whole filtered list, which can be hundreds of businesses.
+                if (
+                  !window.confirm(
+                    `Send ${ids.length} ${ids.length === 1 ? "business" : "businesses"} to the CRM?`
+                  )
+                ) {
+                  return;
+                }
+                void sendToCrm(ids);
+              }}
+              disabled={bulkLoading === "crm"}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-accent)] text-white shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              <Send className="w-4 h-4" />
+              {bulkLoading === "crm" ? "Sending..." : "Send to CRM"}
+            </button>
+          )}
           {paid ? (
             <button
               onClick={() => {
@@ -877,9 +903,9 @@ export default function ResultsPage({
             )}
             {crmEnabled && (
               <button
-                onClick={bulkSendToCrm}
+                onClick={() => sendToCrm(Array.from(selectedIds))}
                 disabled={bulkLoading === "crm"}
-                className="inline-flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors disabled:opacity-50 shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[var(--color-accent)] text-white shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">

@@ -61,7 +61,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const gated = await gate();
   if ("error" in gated) return gated.error;
-  const { supabase } = gated;
+  const { supabase, profile } = gated;
 
   const { businessIds, listId, assignTo } = (await request.json().catch(() => ({}))) as {
     businessIds?: string[];
@@ -110,7 +110,9 @@ export async function POST(request: Request) {
   );
 
   try {
-    const result = await pushLeadsToCrm(leads, assignTo);
+    // Whoever pushed owns the leads — they're the one who'll be calling them.
+    // An explicit assignTo still wins, for handing a batch to someone else.
+    const result = await pushLeadsToCrm(leads, assignTo || profile?.email);
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Could not reach the CRM";

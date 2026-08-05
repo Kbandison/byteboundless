@@ -90,11 +90,13 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
         toast.error(body.error ?? "Could not send to the CRM");
         return;
       }
+      const parts = [
+        body.assigned_to ? `Assigned to ${body.assigned_to}.` : null,
+        body.skipped > 0 ? `${body.skipped} already there — skipped.` : null,
+      ].filter(Boolean);
       toast.success(
         `Sent ${body.imported} to the CRM`,
-        body.skipped > 0
-          ? { description: `${body.skipped} already there — skipped.` }
-          : undefined
+        parts.length ? { description: parts.join(" ") } : undefined
       );
     } catch {
       toast.error("Could not reach the CRM");
@@ -176,7 +178,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
           <button
             onClick={sendListToCrm}
             disabled={sending}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/40 hover:text-[var(--color-accent)] transition-all duration-300 disabled:opacity-50 shrink-0"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-accent)] text-white shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0"
           >
             <Send className="w-4 h-4" />
             {sending ? "Sending..." : "Send to CRM"}

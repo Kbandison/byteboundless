@@ -29,6 +29,7 @@ import { useCrmPush } from "@/hooks/use-crm-push";
 import { TECH_STACK_COLORS, getScoreColor } from "@/lib/constants";
 import { ResultsSkeleton } from "@/components/ui/skeletons";
 import { ListPicker } from "@/components/ui/list-picker";
+import { CrmSendDialog } from "@/components/ui/crm-send-dialog";
 import { createClient } from "@/lib/supabase/client";
 
 interface BusinessRow {
@@ -156,6 +157,8 @@ export default function ResultsPage({
   const plan = usePlan();
   const paid = isPaidPlan(plan);
   const crmEnabled = useCrmPush();
+  // Businesses staged for a push; the dialog picks who they get assigned to.
+  const [crmPending, setCrmPending] = useState<string[] | null>(null);
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
   const [jobQuery, setJobQuery] = useState("");
   const [jobLocation, setJobLocation] = useState("");
@@ -433,14 +436,14 @@ export default function ResultsPage({
   }
 
   // Hand businesses to the CRM, where the actual calling gets logged.
-  async function sendToCrm(ids: string[]) {
+  async function sendToCrm(ids: string[], assignTo: string | null) {
     if (ids.length === 0) return;
     setBulkLoading("crm");
     try {
       const res = await fetch("/api/crm/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessIds: ids }),
+        body: JSON.stringify({ businessIds: ids, assignTo: assignTo ?? undefined }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -575,20 +578,7 @@ export default function ResultsPage({
           </button>
           {crmEnabled && (
             <button
-              onClick={() => {
-                const ids = sorted.map((b) => b.id);
-                if (ids.length === 0) return;
-                // Guard the toolbar button — unlike the bulk bar it acts on the
-                // whole filtered list, which can be hundreds of businesses.
-                if (
-                  !window.confirm(
-                    `Send ${ids.length} ${ids.length === 1 ? "business" : "businesses"} to the CRM?`
-                  )
-                ) {
-                  return;
-                }
-                void sendToCrm(ids);
-              }}
+              onClick={() => setCrmPending(sorted.map((b) => b.id))}
               disabled={bulkLoading === "crm"}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-accent)] text-white shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
             >
@@ -903,7 +893,7 @@ export default function ResultsPage({
             )}
             {crmEnabled && (
               <button
-                onClick={() => sendToCrm(Array.from(selectedIds))}
+                onClick={() => setCrmPending(Array.from(selectedIds))}
                 disabled={bulkLoading === "crm"}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[var(--color-accent)] text-white shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0"
               >
@@ -943,6 +933,13 @@ export default function ResultsPage({
           </div>
         </div>
       )}
+
+      <CrmSendDialog
+        open={crmPending !== null}
+        onClose={() => setCrmPending(null)}
+        businessIds={crmPending ?? []}
+        onSend={sendToCrm}
+      />
 
       {/* List picker modal */}
       <ListPicker

@@ -67,6 +67,30 @@ export function crmStatus(
   return { enabled: configured && operator, configured, operator };
 }
 
+export type CrmSetter = {
+  email: string;
+  name: string;
+  role: string;
+  isSetter: boolean;
+};
+
+/**
+ * Who a pushed batch can be assigned to. The owner does the searching here and
+ * hands leads to whoever will be dialing them, so the picker needs the CRM's
+ * outreach roster.
+ */
+export async function fetchCrmSetters(): Promise<CrmSetter[]> {
+  const config = crmConfig();
+  if (!config) return [];
+  const res = await fetch(`${config.url}/api/outreach/setters`, {
+    headers: { Authorization: `Bearer ${config.key}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+  const body = (await res.json().catch(() => ({}))) as { setters?: CrmSetter[] };
+  return body.setters ?? [];
+}
+
 export type CrmLead = {
   external_id: string;
   business_name: string;

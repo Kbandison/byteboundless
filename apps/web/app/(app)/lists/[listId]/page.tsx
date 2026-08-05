@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { getScoreColor, TECH_STACK_COLORS } from "@/lib/constants";
 import { useCrmPush } from "@/hooks/use-crm-push";
+import { CrmSendDialog } from "@/components/ui/crm-send-dialog";
 
 interface ListItem {
   id: string;
@@ -36,6 +37,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const crmEnabled = useCrmPush();
+  const [crmOpen, setCrmOpen] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -77,13 +79,15 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
 
   // Hand the whole list to the CRM, where the calling gets logged. Re-sending
   // is safe — the CRM skips businesses it already has.
-  async function sendListToCrm() {
+  async function sendListToCrm(_ids: string[], assignTo: string | null) {
     setSending(true);
     try {
       const res = await fetch("/api/crm/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ listId }),
+        // listId rather than ids — the server resolves the whole list, so it
+        // stays correct even if the page is showing a stale copy.
+        body: JSON.stringify({ listId, assignTo: assignTo ?? undefined }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -176,7 +180,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
         </div>
         {crmEnabled && items.length > 0 && (
           <button
-            onClick={sendListToCrm}
+            onClick={() => setCrmOpen(true)}
             disabled={sending}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-accent)] text-white shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0"
           >
@@ -185,6 +189,13 @@ export default function ListDetailPage({ params }: { params: Promise<{ listId: s
           </button>
         )}
       </div>
+
+      <CrmSendDialog
+        open={crmOpen}
+        onClose={() => setCrmOpen(false)}
+        businessIds={items.map((i) => i.business_id)}
+        onSend={sendListToCrm}
+      />
 
       {items.length > 0 ? (
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] overflow-hidden divide-y divide-[var(--color-border)]/50">

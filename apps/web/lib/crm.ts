@@ -100,7 +100,38 @@ export type CrmLead = {
   industry: string | null;
   angle: string | null;
   notes: string | null;
+  /** How far we already got, in our vocabulary — the CRM maps it. */
+  status: string | null;
+  contacted_at: string | null;
 };
+
+/**
+ * A business's outcome on the pusher's saved lists. A business can sit on
+ * several lists, so the furthest-along status wins — same ordering the
+ * /api/contacted lookup uses.
+ */
+export type ListOutcome = {
+  status: string;
+  contacted_at: string | null;
+  notes: string | null;
+};
+
+const STATUS_PRIORITY = ["signed", "quoted", "replied", "contacted", "lost", "saved"];
+
+export function mostAdvanced(items: ListOutcome[]): ListOutcome | null {
+  let best: ListOutcome | null = null;
+  for (const item of items) {
+    if (!best) {
+      best = item;
+      continue;
+    }
+    const a = STATUS_PRIORITY.indexOf(item.status);
+    const b = STATUS_PRIORITY.indexOf(best.status);
+    // Unknown statuses sort last rather than winning by accident.
+    if ((a === -1 ? Infinity : a) < (b === -1 ? Infinity : b)) best = item;
+  }
+  return best;
+}
 
 type BusinessRow = {
   id: string;
@@ -152,7 +183,11 @@ function buildAngle(b: BusinessRow, pitch: string | null): string | null {
   return null;
 }
 
-export function toCrmLead(b: BusinessRow, pitch: string | null): CrmLead {
+export function toCrmLead(
+  b: BusinessRow,
+  pitch: string | null,
+  outcome: ListOutcome | null,
+): CrmLead {
   return {
     external_id: b.id,
     business_name: b.name,
@@ -161,16 +196,22 @@ export function toCrmLead(b: BusinessRow, pitch: string | null): CrmLead {
     website: b.website,
     industry: b.category,
     angle: buildAngle(b, pitch),
-    notes: buildNotes(b),
+    // The setter's own note about the call beats the scrape metadata.
+    notes: [outcome?.notes, buildNotes(b)].filter(Boolean).join(" — ") || null,
+    status: outcome?.status ?? null,
+    contacted_at: outcome?.contacted_at ?? null,
   };
 }
 
 export function mapBusinessesToLeads(
   businesses: BusinessRow[],
   pitches: PitchRow[],
+  outcomes: Map<string, ListOutcome> = new Map(),
 ): CrmLead[] {
   const angleById = new Map(pitches.map((p) => [p.business_id, p.pitch_angle]));
-  return businesses.map((b) => toCrmLead(b, angleById.get(b.id) ?? null));
+  return businesses.map((b) =>
+    toCrmLead(b, angleById.get(b.id) ?? null, outcomes.get(b.id) ?? null)
+  );
 }
 
 export type CrmPushResult = {

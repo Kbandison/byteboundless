@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { canPushToCrm, crmStatus, mapBusinessesToLeads, pushLeadsToCrm } from "@/lib/crm";
+import {
+  canPushToCrm,
+  crmStatus,
+  mapBusinessesToLeads,
+  mostAdvanced,
+  pushLeadsToCrm,
+  type ListOutcome,
+} from "@/lib/crm";
 
 /**
  * Send businesses to LuxWeb CRM as prospects on a setter's call list.
@@ -89,7 +96,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const [{ data: businesses }, { data: pitches }] = await Promise.all([
+  const [{ data: businesses }, { data: pitches }, { data: items }] = await Promise.all([
     supabase
       .from("businesses")
       .select(
@@ -97,7 +104,26 @@ export async function POST(request: Request) {
       )
       .in("id", ids),
     supabase.from("lead_pitches").select("business_id, pitch_angle").in("business_id", ids),
+    // Outcome so far, so work already done doesn't arrive in the CRM as a
+    // cold list. RLS scopes this to the pusher's own lists.
+    supabase
+      .from("saved_list_items")
+      .select("business_id, status, contacted_at, notes")
+      .in("business_id", ids),
   ]);
+
+  // A business can sit on several lists — keep the furthest-along outcome.
+  const byBusiness = new Map<string, ListOutcome[]>();
+  for (const row of (items ?? []) as Array<ListOutcome & { business_id: string }>) {
+    const list = byBusiness.get(row.business_id) ?? [];
+    list.push(row);
+    byBusiness.set(row.business_id, list);
+  }
+  const outcomes = new Map<string, ListOutcome>();
+  for (const [businessId, list] of byBusiness) {
+    const best = mostAdvanced(list);
+    if (best) outcomes.set(businessId, best);
+  }
 
   const rows = (businesses ?? []) as Parameters<typeof mapBusinessesToLeads>[0];
   if (rows.length === 0) {
@@ -106,7 +132,8 @@ export async function POST(request: Request) {
 
   const leads = mapBusinessesToLeads(
     rows,
-    (pitches ?? []) as Parameters<typeof mapBusinessesToLeads>[1]
+    (pitches ?? []) as Parameters<typeof mapBusinessesToLeads>[1],
+    outcomes
   );
 
   try {
